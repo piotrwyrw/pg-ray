@@ -1,16 +1,28 @@
--- ~~~~~~~~~~~~~~~~~~~~~~
---   Piotr K. Wyrwwas
--- "The Mistake" #59328
--- ~~~~~~~~~~~~~~~~~~~~~~
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- The Unhinged PL/pgSQL Ray-Tracing Engine v2.0
+--
+-- (C) 2026 Piotr K. Wyrwwas, Michael T. Steinmötzger
+-- This work is licensed under GPL-3.0
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-drop schema if exists renderer cascade;
-create schema renderer;
+drop schema if exists pgray cascade;
+create schema pgray;
+set search_path to pgray;
 
--- Used to store settings (since [global] variables are not a thing here)
+create domain id_type as bigint;
+
+-- Used to store settings (since global variables are not a thing here)
 create table map_entry
 (
     key   text primary key,
     value integer
+);
+
+create table render_output
+(
+    id          bigint primary key generated always as identity,
+    rendered_at timestamptz,
+    ppm         text
 );
 
 create table pixel
@@ -24,7 +36,7 @@ create table pixel
     constraint b check (b >= 0 and b <= 255)
 );
 
-create table vector
+create table vec3
 (
     id bigint primary key generated always as identity,
     x  double precision,
@@ -42,36 +54,36 @@ create table color
 
 create table sphere
 (
-    id       bigint primary key generated always as identity,
-    color    bigint,
-    location bigint,
-    radius   double precision,
+    id               bigint primary key generated always as identity,
+    color_id         bigint,
+    location_vec3_id bigint,
+    radius           double precision,
 
-    foreign key (color) references color (id),
-    foreign key (location) references vector (id)
+    foreign key (color_id) references color (id),
+    foreign key (location_vec3_id) references vec3 (id)
 );
 
 create table ray
 (
-    id        bigint primary key generated always as identity,
-    origin    bigint,
-    direction bigint,
+    id                bigint primary key generated always as identity,
+    origin_vec3_id    bigint,
+    direction_vec3_id bigint,
 
-    foreign key (origin) references vector (id),
-    foreign key (direction) references vector (id)
+    foreign key (origin_vec3_id) references vec3 (id),
+    foreign key (direction_vec3_id) references vec3 (id)
 );
 
 create table intersection
 (
-    id       bigint primary key generated always as identity,
-    ray      bigint,
-    sphere   bigint,
-    point    bigint,
-    distance double precision,
+    id            bigint primary key generated always as identity,
+    ray_id        bigint,
+    sphere_id     bigint,
+    point_vec3_id bigint,
+    distance      double precision,
 
-    foreign key (ray) references ray (id),
-    foreign key (sphere) references sphere (id),
-    foreign key (point) references vector (id)
+    foreign key (ray_id) references ray (id),
+    foreign key (sphere_id) references sphere (id),
+    foreign key (point_vec3_id) references vec3 (id)
 );
 
 --
@@ -107,14 +119,13 @@ begin
 end;
 $$ language plpgsql;
 
--- Converts an index to a (x, y) coordinate
+-- Converts an index to a cartesian (x, y) coordinate
 create or replace function itoxy(i integer, x out integer, y out integer) returns record as
 $$
 declare
-    width  integer := (select get_var('width'));
-    height integer := (select get_var('height'));
+    width integer := (select get_var('width'));
 begin
-    select i / width, i % height into y, x;
+    select i / width, i % width into y, x;
 end;
 $$ language plpgsql;
 
@@ -133,226 +144,220 @@ $$ language plpgsql;
 -- ~~ Math Functions ~~
 --
 
-create or replace function dot(a bigint, b bigint) returns double precision as
+create or replace function dot(a_vec3_id id_type, b_vec3_id id_type) returns double precision as
 $$
 declare
-    aVec vector%rowType;
-    bVec vector%rowType;
+    aVec vec3%rowType;
+    bVec vec3%rowType;
 begin
-    select * from vector where id = a into aVec;
-    select * from vector where id = b into bVec;
+    select * from vec3 where id = a_vec3_id into aVec;
+    select * from vec3 where id = b_vec3_id into bVec;
     return aVec.x * bVec.x + aVec.y * bVec.y + aVec.z * bVec.z;
 end;
 $$ language plpgsql;
 
-create or replace function vec_magnitude(vec bigint) returns double precision as
+create or replace function vec_magnitude(vec3_id id_type) returns double precision as
 $$
 declare
-    v vector%rowType;
+    v vec3%rowType;
 begin
-    select * from vector where id = vec into v;
+    select * from vec3 where id = vec3_id into v;
     return sqrt(v.x ^ 2 + v.y ^ 2 + v.z ^ 2);
 end;
 $$ language plpgsql;
 
-create or replace function vec_normalize(vec bigint) returns bigint as
+create or replace function vec_normalize(vec3_id id_type) returns id_type as
 $$
 declare
-    vec_row   vector%rowType;
-    magnitude double precision = (select vec_magnitude(vec));
-    norm_id   bigint;
+    vec_row   vec3%rowType;
+    magnitude double precision = (select vec_magnitude(vec3_id));
+    norm_id   id_type;
 begin
     if magnitude = 0 then
-        return vec;
+        return vec3_id;
     end if;
 
     select id, x, y, z
-    from vector
-    where id = vec
+    from vec3
+    where id = vec3_id
     into vec_row;
 
-    insert into vector (x, y, z)
+    insert into vec3 (x, y, z)
     values (vec_row.x / magnitude, vec_row.y / magnitude, vec_row.z / magnitude)
     returning id into norm_id;
     return norm_id;
 end;
 $$ language plpgsql;
 
-create or replace function vec_sub(a bigint, b bigint) returns bigint as
+create or replace function vec_sub(a_vec3_id id_type, b_vec3_id id_type) returns id_type as
 $$
 declare
-    vec_a  vector%rowType;
-    vec_b  vector%rowType;
-    out_id bigint;
+    vec_a  vec3%rowType;
+    vec_b  vec3%rowType;
+    out_id id_type;
 begin
-    select * from vector where id = a into vec_a;
-    select * from vector where id = b into vec_b;
-    insert into vector (x, y, z)
+    select * from vec3 where id = a_vec3_id into vec_a;
+    select * from vec3 where id = b_vec3_id into vec_b;
+    insert into vec3 (x, y, z)
     values (vec_a.x - vec_b.x, vec_a.y - vec_b.y, vec_a.z - vec_b.z)
     returning id into out_id;
     return out_id;
 end;
 $$ language plpgsql;
 
-create or replace function ray_sphere(ray_id bigint, sphere_id bigint) returns bigint as
+create or replace function ray_sphere(ray_id id_type, sphere_id id_type) returns id_type as
 $$
 declare
-    ray_row         ray%rowType;
-    sphere_row      sphere%rowType;
-    direction       vector%rowType;
-    origin          vector%rowType;
-    sphereLoc       vector%rowType;
-    Dx              double precision;
-    Dy              double precision;
-    Dz              double precision;
-    Cx              double precision;
-    Cy              double precision;
-    Cz              double precision;
-    Ox              double precision;
-    Oy              double precision;
-    Oz              double precision;
-    r               double precision;
-    quad_A          double precision;
-    quad_B          double precision;
-    quad_C          double precision;
-    discriminant    double precision;
-    t1              double precision;
-    t2              double precision;
-    t               double precision;
-    inter_x         double precision;
-    inter_y         double precision;
-    inter_z         double precision;
-    render_distance double precision = (select get_var('render_distance'));
-    point_uuid      bigint;
-    inter_id        bigint;
+    epsilon               double precision := 10e-6;
+    _ray                  ray%rowType;
+    _sphere               sphere%rowType;
+    dir_vec3              vec3%rowType;
+    origin_vec3           vec3%rowType;
+    sphere_location_vec3  vec3%rowType;
+    Dx                    double precision;
+    Dy                    double precision;
+    Dz                    double precision;
+    Cx                    double precision;
+    Cy                    double precision;
+    Cz                    double precision;
+    Ox                    double precision;
+    Oy                    double precision;
+    Oz                    double precision;
+    radius                double precision;
+    quad_A                double precision;
+    quad_B                double precision;
+    quad_C                double precision;
+    discriminant          double precision;
+    t1                    double precision;
+    t2                    double precision;
+    t                     double precision;
+    intersect_x           double precision;
+    intersect_y           double precision;
+    intersect_z           double precision;
+    intersection_vec3d_id id_type;
+    intersection_id       id_type;
 begin
-    select * from ray where id = ray_id into ray_row;
-    select * from sphere where id = sphere_id into sphere_row;
-    select * from vector where id = ray_row.direction into direction;
-    select * from vector where id = ray_row.origin into origin;
-    select * from vector where id = sphere_row.location into sphereLoc;
+    select * from ray where id = ray_id into _ray;
+    select * from sphere where id = sphere_id into _sphere;
+    select * from vec3 where id = _ray.direction_vec3_id into dir_vec3;
+    select * from vec3 where id = _ray.origin_vec3_id into origin_vec3;
+    select * from vec3 where id = _sphere.location_vec3_id into sphere_location_vec3;
 
-    Dx := direction.x;
-    Dy := direction.y;
-    Dz := direction.z;
-    Cx := sphereLoc.x;
-    Cy := sphereLoc.y;
-    Cz := sphereLoc.z;
-    Ox := origin.x;
-    Oy := origin.y;
-    Oz := origin.z;
-    r := sphere_row.radius;
+    Dx := dir_vec3.x;
+    Dy := dir_vec3.y;
+    Dz := dir_vec3.z;
+    Cx := sphere_location_vec3.x;
+    Cy := sphere_location_vec3.y;
+    Cz := sphere_location_vec3.z;
+    Ox := origin_vec3.x;
+    Oy := origin_vec3.y;
+    Oz := origin_vec3.z;
+    radius := _sphere.radius;
     quad_A := Dx ^ 2 + Dy ^ 2 + Dz ^ 2;
     quad_B := 2 * (Dx * (Ox - Cx) + Dy * (Oy - Cy) + Dz * (Oz - Cz));
-    quad_C := (Ox - Cx) ^ 2 + (Oy - Cy) ^ 2 + (Oz - Cz) ^ 2 - r ^ 2;
-    discriminant := quad_B ^ 2 - 4 * quad_A * quad_C;
+    quad_C := (Ox - Cx) ^ 2 + (Oy - Cy) ^ 2 + (Oz - Cz) ^ 2 - (radius ^ 2);
+    discriminant := (quad_B ^ 2) - (4 * quad_A * quad_C);
 
     if discriminant < 0 then
         return null;
     end if;
 
-    t1 := (-quad_B - sqrt(quad_B ^ 2 - 4 * quad_A * quad_B)) / 2 * quad_A;
-    t2 := (-quad_B + sqrt(quad_B ^ 2 - 4 * quad_A * quad_B)) / 2 * quad_A;
+    t1 := (-quad_B - sqrt(discriminant)) / (2 * quad_A);
+    t2 := (-quad_B + sqrt(discriminant)) / (2 * quad_A);
 
-    if t1 > 0.001 then
+    t := null;
+    if t1 > epsilon then
         t := t1;
-    else
-        if t2 > 0.001 then
-            t := t2;
-        else
-            return null;
-        end if;
+    end if;
+    if t2 > epsilon and (t is null or t2 < t) then
+        t := t2;
+    end if;
+    if t is null then
+        return null;
     end if;
 
-    inter_x := Ox + Dx * t;
-    inter_y := Oy + Dy * t;
-    inter_z := Oz + Dz * t;
+    intersect_x := Ox + (Dx * t);
+    intersect_y := Oy + (Dy * t);
+    intersect_z := Oz + (Dz * t);
 
-    insert into vector (x, y, z) values (inter_x, inter_y, inter_z) returning id into point_uuid;
-    insert into intersection (ray, sphere, point, distance)
-    values (ray_id, sphere_id, point_uuid, t)
-    returning id into inter_id;
-    return inter_id;
+    insert into vec3 (x, y, z)
+    values (intersect_x, intersect_y, intersect_z)
+    returning id into intersection_vec3d_id;
+
+    insert into intersection (ray_id, sphere_id, point_vec3_id, distance)
+    values (ray_id, sphere_id, intersection_vec3d_id, t)
+    returning id into intersection_id;
+
+    return intersection_id;
 end;
 $$ language plpgsql;
 
-create or replace function first_intersection(ray_id bigint) returns bigint as
+create or replace function first_intersection(ray_id id_type) returns id_type as
 $$
 declare
-    current_ray      ray%rowType;
-    sphere           sphere%rowType       := null;
-    sphere_count     integer              := (select count(*)
-                                              from sphere);
-    sphere_index     integer              := 0;
-    first_inter      intersection%rowType = null;
-    tmp_intersection intersection%rowType;
+    intersection_id id_type;
 begin
-    select * from ray where id = ray_id into current_ray;
-
-    while sphere_index < sphere_count
-        loop
-            select * from sphere offset sphere_index limit 1 into sphere;
-            select ray_sphere(ray_id, sphere.id) into tmp_intersection;
-            if tmp_intersection is null then
-                sphere_index := sphere_index + 1;
-                continue;
-            end if;
-            if first_inter is null or tmp_intersection.distance < first_inter.distance then
-                first_inter := tmp_intersection;
-            end if;
-            sphere_index := sphere_index + 1;
-        end loop;
-
-    return first_inter.id;
+    select id
+    into intersection_id
+    from (select ray_sphere(ray_id, s.id) as id
+          from sphere s) _intersection
+    where id is not null
+    order by (select distance
+              from intersection
+              where id = _intersection.id) asc
+    limit 1;
+    return intersection_id;
 end;
 $$ language plpgsql;
 
-create or replace function ray_direction(x integer, y integer, deflection double precision) returns bigint as
+create or replace function ray_direction(x integer, y integer, deflection double precision) returns id_type as
 $$
 declare
-    width     integer          := (select get_var('width'));
-    height    integer          := (select get_var('height'));
-    deflect_x double precision := -deflection + ((2 * deflection) / width) * x;
-    deflect_y double precision := -deflection + ((2 * deflection) / height) * y;
---     deflect_x double precision := 0.0;
---     deflect_y double precision := 0.0;
-    vec_uuid  bigint;
-    norm_uuid bigint;
+    width                  integer          := (select get_var('width'));
+    height                 integer          := (select get_var('height'));
+    deflect_x              double precision := -deflection + ((2 * deflection) / width) * x;
+    deflect_y              double precision := -deflection + ((2 * deflection) / height) * y;
+    dir_vec3_id            id_type;
+    normalized_dir_vec3_id id_type;
 begin
-    insert into vector (x, y, z) values (deflect_x, deflect_y, 100) returning vector.id into vec_uuid;
-    select vec_normalize(vec_uuid) into norm_uuid;
-    return norm_uuid;
+    insert into vec3 (x, y, z) values (deflect_x, deflect_y, 100) returning vec3.id into dir_vec3_id;
+    select vec_normalize(dir_vec3_id) into normalized_dir_vec3_id;
+    return normalized_dir_vec3_id;
 end;
 $$ language plpgsql;
 
-create or replace function screen_ray(x integer, y integer, deflection double precision) returns bigint as
+create or replace function screen_ray(x integer, y integer, deflection double precision) returns id_type as
 $$
 declare
-    width     integer = (select get_var('width'));
-    height    integer = (select get_var('height'));
-    origin    bigint;
-    ray_id    bigint;
-    direction bigint  = (select ray_direction(x, y, deflection));
+    width             integer = (select get_var('width'));
+    height            integer = (select get_var('height'));
+    origin_vec3_id    id_type;
+    ray_id            id_type;
+    direction_vec3_id id_type = (select ray_direction(x, y, deflection));
 begin
-    insert into vector (x, y, z) values (x, y, 0) returning id into origin;
-    insert into ray (origin, direction) values (origin, direction) returning id into ray_id;
+    insert into vec3 (x, y, z) values (x, y, 0) returning id into origin_vec3_id;
+
+    insert into ray (origin_vec3_id, direction_vec3_id)
+    values (origin_vec3_id, direction_vec3_id)
+    returning id into ray_id;
+
     return ray_id;
 end;
 $$ language plpgsql;
 
-create or replace function surface_normal(intersection_id bigint) returns bigint as
+create or replace function surface_normal(intersection_id id_type) returns id_type as
 $$
 declare
-    inter_row   intersection%rowType;
-    sphere_row  sphere%rowType;
-    nor_id      bigint;
-    norm_nor_id bigint;
+    _intersection             intersection%rowType;
+    _sphere                   sphere%rowType;
+    normal_vec3_id            id_type;
+    normalized_normal_vec3_id id_type;
 begin
-    select * from intersection where id = intersection_id into inter_row;
-    select * from sphere where id = inter_row.sphere into sphere_row;
-    select vec_sub(inter_row.point, sphere_row.location) into nor_id;
-    select vec_normalize(nor_id) into norm_nor_id;
-    return norm_nor_id;
+    select * from intersection where id = intersection_id into _intersection;
+    select * from sphere where id = _intersection.sphere_id into _sphere;
+    select vec_sub(_intersection.point_vec3_id, _sphere.location_vec3_id) into normal_vec3_id;
+    select vec_normalize(normal_vec3_id) into normalized_normal_vec3_id;
+    return normalized_normal_vec3_id;
 end;
 $$ language plpgsql;
 
@@ -360,26 +365,22 @@ $$ language plpgsql;
 -- ~~ Image Util Functions ~~
 --
 
-create or replace function build_ppm_str() returns text as
+create or replace function build_render_output() returns id_type as
 $$
 declare
-    width       integer       := (select get_var('width'));
-    height      integer       := (select get_var('height'));
-    pixel_count integer       := width * height;
-    ppm         text          := format(E'P3\n%s\n%s\n255\n', width, height);
-    pixelColor  pixel%rowType := null;
-    index       integer       := 0;
+    width            integer := (select get_var('width'));
+    height           integer := (select get_var('height'));
+    ppm_header       text    := format(E'P3\n%s %s\n255\n', width, height);
+    ppm_body         text;
+    render_output_id id_type;
 begin
     select string_agg(format('%s %s %s', p.r, p.g, p.b), E'\n')
-    into ppm
+    into ppm_body
     from pixel p;
-    --     while index < pixel_count
---         loop
---             select * from pixel limit 1 offset index into pixelColor;
---             ppm := concat(ppm, format(E'%s %s %s\n', pixelColor.r, pixelColor.g, pixelColor.b));
---             index := index + 1;
---         end loop;
-    return format(E'P3\n%s %s\n255\n', width, height) || ppm;
+    insert into render_output (rendered_at, ppm)
+    values (now(), ppm_header || ppm_body)
+    returning id into render_output_id;
+    return render_output_id;
 end;
 $$ language plpgsql;
 
@@ -398,29 +399,30 @@ create or replace function trace_ray(x integer, y integer, deflection double pre
                                      out b integer) returns record as
 $$
 declare
-    ray_id          bigint           = (select screen_ray(x, y, deflection));
-    inter_id        bigint           = (select first_intersection(ray_id));
-    inter_row       intersection%rowType;
-    sphere_row      sphere%rowType;
-    render_distance double precision = (select get_var('render_distance'));
-    normal          bigint;
-    normal_row      vector%rowType;
+    ray_id              id_type = (select screen_ray(x, y, deflection));
+    inter_id            id_type = (select first_intersection(ray_id));
+    _intersection       intersection%rowType;
+    _sphere             sphere%rowType;
+    surf_normal_vec3_id id_type;
+    surf_normal_vec3    vec3%rowType;
 begin
-    select * from intersection where id = inter_id into inter_row;
-    if inter_id is not null then
-        select * from sphere where id = inter_row.sphere into sphere_row;
-
-        select surface_normal(inter_id) into normal;
-        select * from vector where id = normal into normal_row;
-
-        r := (255 / 2 + (normal_row.x * 255) / 2);
-        g := (255 / 2 + (normal_row.y * 255) / 2);
-        b := (255 / 2 + (normal_row.z * 255) / 2);
-    else
-        r := 0;
-        g := 0;
-        b := 0;
+    if inter_id is null then
+        r := 20;
+        g := 20;
+        b := 20;
+        return;
     end if;
+
+    select * from intersection where id = inter_id into _intersection;
+
+    select * from sphere where id = _intersection.sphere_id into _sphere;
+
+    select surface_normal(inter_id) into surf_normal_vec3_id;
+    select * from vec3 where id = surf_normal_vec3_id into surf_normal_vec3;
+
+    r := (255 / 2 + (surf_normal_vec3.x * 255) / 2);
+    g := (255 / 2 + (surf_normal_vec3.y * 255) / 2);
+    b := (255 / 2 + (surf_normal_vec3.z * 255) / 2);
 end;
 $$ language plpgsql;
 
@@ -430,25 +432,22 @@ declare
     width        integer := (select get_var('width'));
     height       integer := (select get_var('height'));
     pixel_count  integer := width * height;
-    index        integer := 0;
+    pixel_index  integer := 0;
     color_record record;
     coord_record record;
 begin
     perform put_var('pixel_count', pixel_count);
-    while index < pixel_count
+
+    while pixel_index < pixel_count
         loop
         -- The color sweep requires X, Y coordinates; we don't have those.
         -- Thus, we need to convert the index to cartesian coords using our utility function
-            select * from itoxy(index) into coord_record;
-
-            -- Render a color palette; Just for debugging purposes.
-            -- select * from color_sweep(coord_record.x, coord_record.y) into color_record;
-            -- insert into pixel values (color_record.r, color_record.g, color_record.b);
+            select * from itoxy(pixel_index) into coord_record;
 
             select * from trace_ray(coord_record.x, coord_record.y, 0.001) into color_record;
             insert into pixel values (color_record.r, color_record.g, color_record.b);
---                 insert into pixel values (255, 255, 255);
-            index := index + 1;
+--             insert into pixel values (255, 255, 255);
+            pixel_index := pixel_index + 1;
         end loop;
 end;
 $$ language plpgsql;
@@ -456,17 +455,17 @@ $$ language plpgsql;
 create or replace function setup_scene() returns void as
 $$
 declare
-    color_id bigint;
-    vec_id   bigint;
+    color_id id_type;
+    vec3_id  id_type;
     width    integer = (select get_var('width'));
     height   integer = (select get_var('height'));
 begin
     insert into color (r, g, b) values (255, 0, 0) returning id into color_id;
-    insert into vector (x, y, z) values (width / 2, height / 2, 50) returning id into vec_id;
-    insert into sphere (color, location, radius) values (color_id, vec_id, 100.0);
+    insert into vec3 (x, y, z) values (width / 2, height / 2, 55) returning id into vec3_id;
+    insert into sphere (color_id, location_vec3_id, radius) values (color_id, vec3_id, 25.0);
 
-    insert into vector (x, y, z) values (width / 4, height / 4, 20) returning id into vec_id;
-    insert into sphere (color, location, radius) values (color_id, vec_id, 15.0);
+    insert into vec3 (x, y, z) values (width / 4, height / 4, 20) returning id into vec3_id;
+    insert into sphere (color_id, location_vec3_id, radius) values (color_id, vec3_id, 5.0);
 end;
 $$ language plpgsql;
 
@@ -479,22 +478,20 @@ begin
     delete from map_entry;
     delete from pixel;
     delete from ray;
-    delete from vector;
+    delete from vec3;
 end;
 $$ language plpgsql;
 
-create or replace function configure_renderer(width int default 300, height int default 300,
-                                              render_distance int default 200) returns void as
+create or replace function configure_renderer(width int default 300, height int default 300) returns void as
 $$
 begin
     perform put_var('width', width);
     perform put_var('height', height);
-    perform put_var('render_distance', render_distance);
 end;
 $$ language plpgsql;
 
 select reset_state();
-select configure_renderer(400, 400, 200);
+select configure_renderer(500, 500);
 select setup_scene();
-select populate_pixels(); -- 2m 30s
-select build_ppm_str();
+select populate_pixels();
+select build_render_output();
