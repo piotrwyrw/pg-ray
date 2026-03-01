@@ -9,6 +9,9 @@ drop schema if exists pgray cascade;
 create schema pgray;
 set search_path to pgray;
 
+-- PL/pgSQL loves to fail silently and mess with my code. Let's do something about it.
+set plpgsql.extra_errors = 'all';
+
 create domain id_t as bigint;
 
 -- Used to store settings (since global variables are not a thing here)
@@ -44,11 +47,16 @@ create unlogged table color
 
 create unlogged table environment
 (
-    id                      bigint primary key generated always as identity not null,
-    sun_direction_vec3_id   bigint                                          not null,
-    ambient_light_intensity double precision                                not null,
+    id                       bigint primary key generated always as identity not null,
+    sun_direction_vec3_id    bigint                                          not null,
+    ambient_light_intensity  double precision                                not null,
+    camera_direction_vec3_id bigint                                          not null,
+    camera_location_vec3_id  bigint                                          not null,
+    view_plane_size          double precision                                not null,
 
-    foreign key (sun_direction_vec3_id) references vec3 (id)
+    foreign key (sun_direction_vec3_id) references vec3 (id),
+    foreign key (camera_direction_vec3_id) references vec3 (id),
+    foreign key (camera_location_vec3_id) references vec3 (id)
 );
 
 create unlogged table sphere
@@ -92,11 +100,56 @@ create unlogged table render_output
     ppm         text                                            not null
 );
 
---
--- ~~ Utility Functions ~~
---
+create unlogged table color_accumulator
+(
+    r integer check (r >= 0 and r <= 255) not null,
+    g integer check (g >= 0 and g <= 255) not null,
+    b integer check (b >= 0 and b <= 255) not null
+);
 
-create or replace function set_property(key text, value bigint) returns void as
+
+--   ###############################
+--     Color Accumulator Functions
+--   ###############################
+
+create or replace function accumulator_sample(_r integer, _g integer, _b integer) returns void as
+$$
+begin
+    insert into color_accumulator (r, g, b) values (_r, _g, _b);
+end;
+$$ language plpgsql;
+
+create or replace function accumulator_clear() returns void as
+$$
+begin
+    delete from color_accumulator;
+end;
+$$ language plpgsql;
+
+create or replace function accumulator_commit(clear boolean default true) returns void as
+$$
+declare
+    final_r integer := 0;
+    final_g integer := 0;
+    final_b integer := 0;
+begin
+    select sum(ca.r) / count(*) from color_accumulator ca into final_r;
+    select sum(ca.g) / count(*) from color_accumulator ca into final_g;
+    select sum(ca.b) / count(*) from color_accumulator ca into final_b;
+    insert into pixel (r, g, b) values (final_r, final_g, final_b);
+
+    if clear then
+        perform accumulator_clear();
+    end if;
+end;
+$$ language plpgsql;
+
+
+--   ######################
+--     Property Functions
+--   ######################
+
+create or replace function property_set(key text, value bigint) returns void as
 $$
 declare
     mapKey   constant text   := key;
@@ -111,7 +164,7 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function get_property(key text) returns text as
+create or replace function property_get(key text) returns text as
 $$
 declare
     mapKey constant text   := key;
@@ -125,11 +178,52 @@ begin
 end;
 $$ language plpgsql;
 
+create or replace function property_width() returns integer as
+$$
+begin
+    return property_get('width')::integer;
+end;
+$$ language plpgsql;
+
+create or replace function property_height() returns integer as
+$$
+begin
+    return property_get('height')::integer;
+end;
+$$ language plpgsql;
+
+create or replace function property_environment_id() returns id_t as
+$$
+begin
+    return property_get('environment')::id_t;
+end;
+$$ language plpgsql;
+
+create or replace function property_set_dimensions(width integer, height integer) returns void as
+$$
+begin
+    perform property_set('width', width);
+    perform property_set('height', height);
+end;
+$$ language plpgsql;
+
+create or replace function property_set_environment(environment_id id_t) returns void as
+$$
+begin
+    perform property_set('environment', environment_id);
+end;
+$$ language plpgsql;
+
+
+--   #####################
+--     Utility Functions
+--   #####################
+
 -- Converts an index to a cartesian (x, y) coordinate
 create or replace function itoxy(i integer, x out integer, y out integer) returns record as
 $$
 declare
-    width integer := (select get_property('width'));
+    width integer := (select property_get('width'));
 begin
     select i / width, i % width into y, x;
 end;
@@ -139,7 +233,7 @@ $$ language plpgsql;
 create or replace function xytoi(x integer, y integer) returns integer as
 $$
 declare
-    width integer := (select get_property('width'));
+    width integer := (select property_get('width'));
 begin
     return (y * width) + x;
 end ;
@@ -184,9 +278,63 @@ begin
 end;
 $$ language plpgsql;
 
---
--- ~~ Math Functions ~~
---
+create or replace function format_interval(start_timestamp timestamptz, end_timestamp timestamptz) returns text as
+$$
+declare
+    _interval interval := end_timestamp - start_timestamp;
+    total_ms  int      := round(extract(epoch from _interval) * 1000);
+    hours     int;
+    minutes   int;
+    seconds   int;
+    millis    int;
+    formatted text     := '';
+begin
+    hours := (total_ms / (1000 * 60 * 60))::int;
+    minutes := ((total_ms / (1000 * 60))::int % 60);
+    seconds := ((total_ms / 1000)::int % 60);
+    millis := (total_ms::int % 1000);
+
+    if hours > 0 then
+        formatted := formatted || format('%s hours ', hours);
+    end if;
+
+    if minutes > 0 then
+        formatted := formatted || format('%s minutes ', minutes);
+    end if;
+
+    if seconds > 0 then
+        formatted := formatted || format('%s seconds ', seconds);
+    end if;
+
+    formatted := formatted || format('%s ms', millis);
+    return formatted;
+end;
+$$ language plpgsql;
+
+
+--   ####################
+--     Vector Functions
+--   ####################
+
+create or replace function vec_new(_x double precision, _y double precision, _z double precision) returns id_t as
+$$
+declare
+    vec3_id id_t;
+begin
+    insert into vec3 (x, y, z) values (_x, _y, _z) returning id into vec3_id;
+    return vec3_id;
+end;
+$$ language plpgsql;
+
+create or replace function vec_copy(vec3_id id_t) returns id_t as
+$$
+declare
+    new_vec3_id id_t;
+begin
+    insert into vec3 (x, y, z) select v.x, v.y, v.z from vec3 v where v.id = vec3_id returning id into new_vec3_id;
+    return new_vec3_id;
+end;
+$$ language plpgsql;
 
 create or replace function vec_dot(a_vec3_id id_t, b_vec3_id id_t) returns double precision as
 $$
@@ -197,6 +345,26 @@ begin
     select * from vec3 where id = a_vec3_id into a_vec3;
     select * from vec3 where id = b_vec3_id into b_vec3;
     return a_vec3.x * b_vec3.x + a_vec3.y * b_vec3.y + a_vec3.z * b_vec3.z;
+end;
+$$ language plpgsql;
+
+create or replace function vec_cross(a_vec3_id id_t, b_vec3_id id_t) returns id_t as
+$$
+declare
+    a_vec3  vec3%rowtype;
+    b_vec3  vec3%rowtype;
+    cross_x double precision;
+    cross_y double precision;
+    cross_z double precision;
+begin
+    select v.* into a_vec3 from vec3 v where v.id = a_vec3_id;
+    select v.* into b_vec3 from vec3 v where v.id = b_vec3_id;
+
+    cross_x := a_vec3.y * b_vec3.z - a_vec3.z * b_vec3.y;
+    cross_y := a_vec3.z * b_vec3.x - a_vec3.x * b_vec3.z;
+    cross_z := a_vec3.x * b_vec3.y - a_vec3.y * b_vec3.x;
+
+    return vec_new(cross_x, cross_y, cross_z);
 end;
 $$ language plpgsql;
 
@@ -215,10 +383,9 @@ $$
 declare
     vec_row   vec3%rowType;
     magnitude double precision = (select vec_magnitude(vec3_id));
-    norm_id   id_t;
 begin
     if magnitude = 0 then
-        return vec3_id;
+        return vec_copy(vec3_id);
     end if;
 
     select id, x, y, z
@@ -226,40 +393,95 @@ begin
     where id = vec3_id
     into vec_row;
 
-    insert into vec3 (x, y, z)
-    values (vec_row.x / magnitude, vec_row.y / magnitude, vec_row.z / magnitude)
-    returning id into norm_id;
-    return norm_id;
+    return vec_new(vec_row.x / magnitude, vec_row.y / magnitude, vec_row.z / magnitude);
 end;
 $$ language plpgsql;
 
 create or replace function vec_sub(a_vec3_id id_t, b_vec3_id id_t) returns id_t as
 $$
 declare
-    vec_a  vec3%rowType;
-    vec_b  vec3%rowType;
-    out_id id_t;
+    vec_a vec3%rowType;
+    vec_b vec3%rowType;
 begin
     select v.* from vec3 v where id = a_vec3_id into vec_a;
     select v.* from vec3 v where id = b_vec3_id into vec_b;
-    insert into vec3 (x, y, z)
-    values (vec_a.x - vec_b.x, vec_a.y - vec_b.y, vec_a.z - vec_b.z)
-    returning id into out_id;
-    return out_id;
+    return vec_new(vec_a.x - vec_b.x, vec_a.y - vec_b.y, vec_a.z - vec_b.z);
+end;
+$$ language plpgsql;
+
+create or replace function vec_add(a_vec3_id id_t, b_vec3_id id_t) returns id_t as
+$$
+declare
+    vec_a vec3%rowType;
+    vec_b vec3%rowType;
+begin
+    select v.* from vec3 v where id = a_vec3_id into vec_a;
+    select v.* from vec3 v where id = b_vec3_id into vec_b;
+    return vec_new(vec_a.x + vec_b.x, vec_a.y + vec_b.y, vec_a.z + vec_b.z);
+end;
+$$ language plpgsql;
+
+create or replace function vec_multiply(vec3_id id_t, fac double precision) returns id_t as
+$$
+declare
+    _vec3 vec3%rowType;
+begin
+    select v.* from vec3 v where id = vec3_id into _vec3;
+    return vec_new(_vec3.x * fac, _vec3.y * fac, _vec3.z * fac);
 end;
 $$ language plpgsql;
 
 create or replace function vec_flip(vec3_id id_t) returns id_t as
 $$
 declare
-    _vec3           vec3%rowtype;
-    flipped_vec3_id id_t;
+    _vec3 vec3%rowtype;
 begin
     select v.* from vec3 v where id = vec3_id into _vec3;
-    insert into vec3 (x, y, z) values (-_vec3.x, -_vec3.y, -_vec3.z) returning id into flipped_vec3_id;
-    return flipped_vec3_id;
+    return vec_new(-_vec3.x, -_vec3.y, -_vec3.z);
 end;
 $$ language plpgsql;
+
+
+--   ####################
+--     Vector Functions
+--   ####################
+
+create or replace function color_new(_r integer, _g integer, _b integer) returns id_t as
+$$
+declare
+    color_id id_t;
+begin
+    insert into color (r, g, b) values (_r, _g, _b) returning id into color_id;
+    return color_id;
+end;
+$$ language plpgsql;
+
+
+--   #################
+--     Ray Functions
+--   #################
+
+create or replace function ray_new(_origin_vec3_id id_t, plane_location_vec3_id id_t) returns id_t as
+$$
+declare
+    ray_direction_vec3_id id_t;
+    ray_id                id_t;
+begin
+    ray_direction_vec3_id := vec_sub(plane_location_vec3_id, _origin_vec3_id);
+    ray_direction_vec3_id := vec_normalize(ray_direction_vec3_id);
+
+    insert into ray (origin_vec3_id, direction_vec3_id)
+    values (_origin_vec3_id, ray_direction_vec3_id)
+    returning id into ray_id;
+
+    return ray_id;
+end;
+$$ language plpgsql;
+
+
+--   ####################
+--     Ray-Tracing Math
+--   ####################
 
 create or replace function ray_sphere(ray_id id_t, sphere_id id_t) returns id_t as
 $$
@@ -379,8 +601,8 @@ $$ language plpgsql;
 create or replace function ray_direction(x integer, y integer, deflection double precision) returns id_t as
 $$
 declare
-    width                  integer          := (select get_property('width'));
-    height                 integer          := (select get_property('height'));
+    width                  integer          := (select property_get('width'));
+    height                 integer          := (select property_get('height'));
     deflect_x              double precision := -deflection + ((2 * deflection) / width) * x;
     deflect_y              double precision := -deflection + ((2 * deflection) / height) * y;
     dir_vec3_id            id_t;
@@ -395,8 +617,8 @@ $$ language plpgsql;
 create or replace function screen_ray(_x integer, _y integer, deflection double precision) returns id_t as
 $$
 declare
-    width       integer = (select get_property('width'));
-    height      integer = (select get_property('height'));
+    width       integer = (select property_get('width'));
+    height      integer = (select property_get('height'));
     ray_id      id_t;
     org_vec3_id id_t;
     dir_vec3_id id_t    = (select ray_direction(_x, _y, deflection));
@@ -435,37 +657,11 @@ begin
 end;
 $$ language plpgsql;
 
---
--- ~~ Rendering Functions ~~
---
-
-create or replace function build_render_output() returns id_t as
-$$
-declare
-    width            integer := (select get_property('width'));
-    height           integer := (select get_property('height'));
-    ppm_header       text    := format(E'P3\n%s %s\n255\n', width, height);
-    ppm_body         text;
-    render_output_id id_t;
-begin
-    raise info 'Writing output image as PPM';
-    select string_agg(format('%s %s %s', p.r, p.g, p.b), E'\n' order by p.id)
-    into ppm_body
-    from pixel p;
-
-    insert into render_output (rendered_at, ppm)
-    values (now(), ppm_header || ppm_body)
-    returning id into render_output_id;
-    return render_output_id;
-end;
-$$ language plpgsql;
-
--- A simple gradient color pattern. For debugging purposes only.
 create or replace function color_sweep(x integer, y integer, out r integer, out g integer, out b integer) returns record as
 $$
 declare
-    width        integer := (select get_property('width'));
-    height       integer := (select get_property('height'));
+    width        integer := (select property_get('width'));
+    height       integer := (select property_get('height'));
     from_r       integer := 0.5 * 255;
     from_g       integer := 0.7 * 255;
     from_b       integer := 255;
@@ -484,15 +680,45 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function trace_ray(x integer, y integer, deflection double precision, out r integer, out g integer,
+
+--   ######################
+--     Renderer Functions
+--   ######################
+
+create or replace function write_output_ppm() returns id_t as
+$$
+declare
+    width            integer := (select property_get('width'));
+    height           integer := (select property_get('height'));
+    ppm_header       text    := format(E'P3\n%s %s\n255\n', width, height);
+    ppm_body         text;
+    render_output_id id_t;
+begin
+    raise info 'Writing output image as PPM';
+    select string_agg(format('%s %s %s', p.r, p.g, p.b), E'\n' order by p.id)
+    into ppm_body
+    from pixel p;
+
+    insert into render_output (rendered_at, ppm)
+    values (now(), ppm_header || ppm_body)
+    returning id into render_output_id;
+    return render_output_id;
+end;
+$$ language plpgsql;
+
+create or replace function trace_ray(x integer,
+                                     y integer,
+                                     ray_id id_t,
+                                     out r integer,
+                                     out g integer,
                                      out b integer) returns record as
 $$
 declare
-    ray_id                      id_t := (select screen_ray(x, y, deflection));
+    environment_id              id_t := (select property_get('environment'));
     ray_direction_vec3_id       id_t;
-    inter_id                    id_t := (select first_intersection(ray_id));
-    environment_id              id_t := (select get_property('environment'));
+    first_intersection_id       id_t;
     ambient_intensity           double precision;
+    camera_dir_vec3_id          id_t;
     sun_dir_vec3_id             id_t;
     surf_normal_vec3_id         id_t;
     flipped_surf_normal_vec3_id id_t;
@@ -500,7 +726,9 @@ declare
     diffuse_intensity           double precision;
     sphere_color                color%rowtype;
 begin
-    if inter_id is null then
+    first_intersection_id := (select first_intersection(ray_id));
+
+    if first_intersection_id is null then
         select * from color_sweep(x, y) into r, g, b;
         return;
     end if;
@@ -508,15 +736,16 @@ begin
     select r.direction_vec3_id into ray_direction_vec3_id from ray r where r.id = ray_id;
     select e.sun_direction_vec3_id into sun_dir_vec3_id from environment e where e.id = environment_id;
     select e.ambient_light_intensity into ambient_intensity from environment e where e.id = environment_id;
+    select e.camera_direction_vec3_id into camera_dir_vec3_id from environment e where e.id = environment_id;
 
     select c.*
     into sphere_color
     from intersection i
              join sphere s on i.sphere_id = s.id
              join color c on c.id = s.color_id
-    where i.id = inter_id;
+    where i.id = first_intersection_id;
 
-    surf_normal_vec3_id := surface_normal(inter_id);
+    surf_normal_vec3_id := surface_normal(first_intersection_id);
     flipped_surf_normal_vec3_id := vec_flip(surf_normal_vec3_id);
     select v.* into flipped_surf_normal_vec3 from vec3 v where id = flipped_surf_normal_vec3_id;
 
@@ -531,20 +760,73 @@ $$ language plpgsql;
 create or replace function render() returns void as
 $$
 declare
-    width                 integer := (select get_property('width'));
-    height                integer := (select get_property('height'));
-    pixel_count           integer := width * height;
-    pixel_index           integer := 0;
-    tmp_coordinate_record record;
-    tmp_color_record      record;
-    last_percentage       integer = 0;
-    current_percentage    integer = 0;
+    width                   integer          := property_width();
+    height                  integer          := property_height();
+    environment_id          id_t             := property_environment_id();
+--
+    plane_size              double precision;
+    camera_loc_vec3_id      id_t;
+    camera_dir_vec3_id      id_t;
+--
+    pixel_count             integer          := width * height;
+    pixel_index             integer          := 0;
+    tmp_coordinate_record   record;
+    tmp_color_record        record;
+--
+    aspect_ratio            double precision := width::double precision / height::double precision;
+    plane_height            double precision;
+    plane_width             double precision;
+--
+    world_up_vec3_id        id_t;
+    plane_right_vec3_id     id_t;
+    plane_up_vec3_id        id_t;
+    plane_top_left_vec3_id  id_t;
+    plane_distance constant double precision := 1.0;
+    plane_pixel_width       double precision;
+    plane_pixel_height      double precision;
+--
+    tmp_vec3_id             id_t;
+    tmp2_vec3_id            id_t;
+--
+    tmp_ray                 id_t;
+--
+    last_percentage         integer          := 0;
+    current_percentage      integer          := 0;
 begin
     raise info 'Started rendering scene with % object(s) to an %x%px output image', (select count(*) from sphere), width, height;
 
-    perform set_property('pixel_count', pixel_count);
+    select e.view_plane_size, e.camera_direction_vec3_id, e.camera_location_vec3_id
+    into plane_size, camera_dir_vec3_id, camera_loc_vec3_id
+    from environment e
+    where e.id = environment_id;
 
-    while pixel_index < pixel_count
+    plane_height := plane_size;
+    plane_width := plane_size * aspect_ratio;
+
+    plane_pixel_width := plane_width / width;
+    plane_pixel_height := plane_height / height;
+
+    world_up_vec3_id := vec_new(0, 1, 0);
+    plane_right_vec3_id := vec_normalize(vec_cross(camera_dir_vec3_id, world_up_vec3_id));
+    plane_up_vec3_id := vec_normalize(vec_cross(plane_right_vec3_id, camera_dir_vec3_id));
+
+    -- Offset to the desired plane distance
+    plane_top_left_vec3_id := vec_multiply(camera_dir_vec3_id, plane_distance);
+
+    -- Move left 1/2 of the plane width
+    tmp_vec3_id := vec_flip(plane_right_vec3_id);
+    tmp_vec3_id := vec_multiply(tmp_vec3_id, plane_width / 2);
+    plane_top_left_vec3_id := vec_add(plane_top_left_vec3_id, tmp_vec3_id);
+
+    -- Move up 1/2 of the plane height
+    tmp_vec3_id := vec_multiply(plane_up_vec3_id, plane_height / 2);
+    plane_top_left_vec3_id := vec_add(plane_top_left_vec3_id, tmp_vec3_id);
+
+    -- Shift plane to the camera location
+    plane_top_left_vec3_id := vec_add(plane_top_left_vec3_id, camera_loc_vec3_id);
+
+    while
+        pixel_index < pixel_count
         loop
             current_percentage =
                     (((pixel_index + 1)::double precision / pixel_count::double precision) *
@@ -558,8 +840,23 @@ begin
             -- Convert pixel index to cartesian coordinates
             select * from itoxy(pixel_index) into tmp_coordinate_record;
 
+            -- Calculate pixel position on the image plane
+            tmp_vec3_id := vec_copy(plane_right_vec3_id);
+            tmp_vec3_id := vec_multiply(tmp_vec3_id, (tmp_coordinate_record.x + 0.5) * plane_pixel_width);
+
+            tmp2_vec3_id := vec_flip(plane_up_vec3_id);
+            tmp2_vec3_id := vec_multiply(tmp2_vec3_id, (tmp_coordinate_record.y + 0.5) * plane_pixel_height);
+
+            tmp_vec3_id := vec_add(tmp_vec3_id, tmp2_vec3_id);
+            tmp_vec3_id := vec_add(tmp_vec3_id, plane_top_left_vec3_id);
+
+            -- Create ray
+            tmp_ray := ray_new(camera_loc_vec3_id, tmp_vec3_id);
+
             -- Shade and push the current pixel
-            select * from trace_ray(tmp_coordinate_record.x, tmp_coordinate_record.y, 0.001) into tmp_color_record;
+            select *
+            from trace_ray(tmp_coordinate_record.x, tmp_coordinate_record.y, tmp_ray)
+            into tmp_color_record;
             insert into pixel (r, g, b) values (tmp_color_record.r, tmp_color_record.g, tmp_color_record.b);
 
             pixel_index := pixel_index + 1;
@@ -572,15 +869,15 @@ $$
 declare
     color_id id_t;
     vec3_id  id_t;
-    width    integer := (select get_property('width'));
-    height   integer := (select get_property('height'));
+    width    integer := (select property_get('width'));
+    height   integer := (select property_get('height'));
 begin
     insert into color (r, g, b) values (255, 0, 0) returning id into color_id;
-    insert into vec3 (x, y, z) values (width / 2, height / 2, 55) returning id into vec3_id;
-    insert into sphere (color_id, location_vec3_id, radius) values (color_id, vec3_id, 25.0);
+    vec3_id := vec_new(0, 0, 30);
+    insert into sphere (color_id, location_vec3_id, radius) values (color_id, vec3_id, 10.0);
 
-    insert into vec3 (x, y, z) values (width / 4, height / 4, 20) returning id into vec3_id;
-    insert into sphere (color_id, location_vec3_id, radius) values (color_id, vec3_id, 5.0);
+    --     insert into vec3 (x, y, z) values (width / 4, height / 4, 20) returning id into vec3_id;
+--     insert into sphere (color_id, location_vec3_id, radius) values (color_id, vec3_id, 5.0);
 end;
 $$ language plpgsql;
 
@@ -603,60 +900,50 @@ create or replace function configure_render_params(width int default 300,
                                                    sun_dir_x double precision default -1,
                                                    sun_dir_y double precision default -1,
                                                    sun_dir_z double precision default -1,
-                                                   ambient_light double precision default 0) returns void as
+                                                   ambient_light double precision default 0,
+                                                   _view_plane_size double precision default 1,
+                                                   camera_loc_x double precision default 0,
+                                                   camera_loc_y double precision default 0,
+                                                   camera_loc_z double precision default 0,
+                                                   camera_dir_x double precision default 0,
+                                                   camera_dir_y double precision default 0,
+                                                   camera_dir_z double precision default 1) returns void as
 $$
 declare
-    sun_dir_vec3_id            id_t;
-    sun_dir_normalized_vec3_id id_t;
-    environment_id             id_t;
+    sun_dir_vec3_id               id_t;
+    sun_dir_normalized_vec3_id    id_t;
+    camera_loc_vec3_id            id_t;
+    camera_dir_vec3_id            id_t;
+    camera_dir_normalized_vec3_id id_t;
+    environment_id                id_t;
 begin
     raise info 'Renderer set to %x%px output image. Sun direction is (%, %, %).', width, height, sun_dir_x, sun_dir_y, sun_dir_z;
 
-    insert into vec3 (x, y, z) values (sun_dir_x, sun_dir_y, sun_dir_z) returning id into sun_dir_vec3_id;
+    sun_dir_vec3_id := vec_new(sun_dir_x, sun_dir_y, sun_dir_z);
     sun_dir_normalized_vec3_id := vec_normalize(sun_dir_vec3_id);
 
-    insert into environment (sun_direction_vec3_id, ambient_light_intensity)
-    values (sun_dir_normalized_vec3_id, ambient_light)
+    camera_loc_vec3_id := vec_new(camera_loc_x, camera_loc_y, camera_loc_z);
+
+    camera_dir_vec3_id := vec_new(camera_dir_x, camera_dir_y, camera_dir_z);
+    camera_dir_normalized_vec3_id := vec_normalize(camera_dir_vec3_id);
+
+    insert into environment (sun_direction_vec3_id,
+                             ambient_light_intensity,
+                             camera_location_vec3_id,
+                             camera_direction_vec3_id,
+                             view_plane_size)
+    values (sun_dir_normalized_vec3_id,
+            ambient_light,
+            camera_loc_vec3_id,
+            camera_dir_normalized_vec3_id,
+            _view_plane_size)
     returning id into environment_id;
 
-    perform set_property('width', width);
-    perform set_property('height', height);
-    perform set_property('environment', environment_id);
+    perform property_set_dimensions(width, height);
+    perform property_set_environment(environment_id);
 end;
 $$ language plpgsql;
 
-create or replace function format_interval(start_timestamp timestamptz, end_timestamp timestamptz) returns text as
-$$
-declare
-    _interval interval := end_timestamp - start_timestamp;
-    total_ms  int      := round(extract(epoch from _interval) * 1000);
-    hours     int;
-    minutes   int;
-    seconds   int;
-    millis    int;
-    formatted text     := '';
-begin
-    hours := (total_ms / (1000 * 60 * 60))::int;
-    minutes := ((total_ms / (1000 * 60))::int % 60);
-    seconds := ((total_ms / 1000)::int % 60);
-    millis := (total_ms::int % 1000);
-
-    if hours > 0 then
-        formatted := formatted || format('%s hours ', hours);
-    end if;
-
-    if minutes > 0 then
-        formatted := formatted || format('%s minutes ', minutes);
-    end if;
-
-    if seconds > 0 then
-        formatted := formatted || format('%s seconds ', seconds);
-    end if;
-
-    formatted := formatted || format('%s ms', millis);
-    return formatted;
-end;
-$$ language plpgsql;
 do
 $$
     declare
@@ -665,10 +952,10 @@ $$
     begin
         start_time := clock_timestamp();
         perform reset_state();
-        perform configure_render_params(400, 400, -1, -1, 1, 0.25);
+        perform configure_render_params(100, 100, -1, -1, 1, 0.25);
         perform setup_scene();
         perform render();
-        perform build_render_output();
+        perform write_output_ppm();
         end_time := clock_timestamp();
         raise info 'Done (%)', format_interval(start_time, end_time);
     end;
