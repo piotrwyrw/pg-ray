@@ -12,27 +12,27 @@ set search_path to pgray;
 create domain id_t as bigint;
 
 -- Used to store settings (since global variables are not a thing here)
-create table map_entry
+create unlogged table map_entry
 (
     key   text primary key not null,
     value integer          not null
 );
 
-create table render_output
+create unlogged table render_output
 (
     id          bigint primary key generated always as identity not null,
     rendered_at timestamptz                                     not null,
     ppm         text                                            not null
 );
 
-create table pixel
+create unlogged table pixel
 (
     r integer check (r >= 0 and r <= 255) not null,
     g integer check (g >= 0 and g <= 255) not null,
     b integer check (b >= 0 and b <= 255) not null
 );
 
-create table vec3
+create unlogged table vec3
 (
     id bigint primary key generated always as identity not null,
     x  double precision                                not null,
@@ -40,7 +40,7 @@ create table vec3
     z  double precision                                not null
 );
 
-create table color
+create unlogged table color
 (
     id bigint primary key generated always as identity not null,
     r  integer                                         not null,
@@ -48,7 +48,7 @@ create table color
     b  integer                                         not null
 );
 
-create table sphere
+create unlogged table sphere
 (
     id               bigint primary key generated always as identity not null,
     color_id         bigint                                          not null,
@@ -59,7 +59,7 @@ create table sphere
     foreign key (location_vec3_id) references vec3 (id)
 );
 
-create table ray
+create unlogged table ray
 (
     id                bigint primary key generated always as identity not null,
     origin_vec3_id    bigint                                          not null,
@@ -69,7 +69,7 @@ create table ray
     foreign key (direction_vec3_id) references vec3 (id)
 );
 
-create table intersection
+create unlogged table intersection
 (
     id            bigint primary key generated always as identity not null,
     ray_id        bigint                                          not null,
@@ -109,7 +109,7 @@ declare
 begin
     select map_entry.value as mapKey from map_entry where map_entry.key = mapKey into resultCache;
     if resultCache is null then
-        raise 'Attempting to access undefined variable "%"!', key;
+        raise exception 'Attempting to access undefined variable "%"!', key;
     end if;
     return resultCache;
 end;
@@ -388,7 +388,7 @@ declare
     ppm_body         text;
     render_output_id id_t;
 begin
-    raise notice 'Writing render output as PPM';
+    raise info 'Writing output image as PPM';
     select string_agg(format('%s %s %s', p.r, p.g, p.b), E'\n')
     into ppm_body
     from pixel p;
@@ -445,13 +445,24 @@ declare
     pixel_index           integer := 0;
     tmp_coordinate_record record;
     tmp_color_record      record;
+    last_percentage       integer = 0;
+    current_percentage    integer = 0;
 begin
-    raise notice 'Rendering image %x%px with % objects', width, height, (select count(*) from sphere);
+    raise info 'Started rendering scene with % object to an %x%px output image', width, height, (select count(*) from sphere);
 
     perform put_var('pixel_count', pixel_count);
 
     while pixel_index < pixel_count
         loop
+            current_percentage =
+                    (((pixel_index + 1)::double precision / pixel_count::double precision) *
+                     100::double precision)::integer;
+
+            if last_percentage + 4 < current_percentage then
+                raise info 'Progress: %', current_percentage || '%';
+                last_percentage := current_percentage;
+            end if;
+
             -- Convert pixel index to cartesian coordinates
             select * from itoxy(pixel_index) into tmp_coordinate_record;
 
@@ -497,19 +508,57 @@ $$ language plpgsql;
 create or replace function configure_render_params(width int default 300, height int default 300) returns void as
 $$
 begin
+    raise info 'Output image dimensions set to %x%px', width, height;
     perform put_var('width', width);
     perform put_var('height', height);
 end;
 $$ language plpgsql;
 
+create or replace function format_interval(start_timestamp timestamptz, end_timestamp timestamptz) returns text as
+$$
+declare
+    _interval interval := end_timestamp - start_timestamp;
+    total_ms  int      := round(extract(epoch from _interval) * 1000);
+    hours     int;
+    minutes   int;
+    seconds   int;
+    millis    int;
+    formatted text     := '';
+begin
+    hours := (total_ms / (1000 * 60 * 60))::int;
+    minutes := ((total_ms / (1000 * 60))::int % 60);
+    seconds := ((total_ms / 1000)::int % 60);
+    millis := (total_ms::int % 1000);
+
+    if hours > 0 then
+        formatted := formatted || format('%s hours ', hours);
+    end if;
+
+    if minutes > 0 then
+        formatted := formatted || format('%s minutes ', minutes);
+    end if;
+
+    if seconds > 0 then
+        formatted := formatted || format('%s seconds ', seconds);
+    end if;
+
+    formatted := formatted || format('%s ms', millis);
+    return formatted;
+end;
+$$ language plpgsql;
 do
 $$
+    declare
+        start_time timestamptz;
+        end_time   timestamptz;
     begin
+        start_time := clock_timestamp();
         perform reset_state();
-        perform configure_render_params(100, 100);
+        perform configure_render_params(200, 200);
         perform setup_scene();
         perform render();
         perform build_render_output();
-        raise notice 'Done.';
+        end_time := clock_timestamp();
+        raise info 'Done (%)', format_interval(start_time, end_time);
     end;
 $$ language plpgsql;
