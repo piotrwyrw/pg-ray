@@ -40,21 +40,21 @@ create unlogged table vec3
 create unlogged table color
 (
     id bigint primary key generated always as identity not null,
-    r  integer                                         not null,
-    g  integer                                         not null,
-    b  integer                                         not null
+    r  double precision                                not null,
+    g  double precision                                not null,
+    b  double precision                                not null
 );
 
 create unlogged table environment
 (
     id                       bigint primary key generated always as identity not null,
-    sun_direction_vec3_id    bigint                                          not null,
-    ambient_light_intensity  double precision                                not null,
+    sky_intensity            double precision                                not null,
     camera_direction_vec3_id bigint                                          not null,
     camera_location_vec3_id  bigint                                          not null,
     view_plane_size          double precision                                not null,
+    sample_count             integer                                         not null,
+    bounce_limit             integer                                         not null,
 
-    foreign key (sun_direction_vec3_id) references vec3 (id),
     foreign key (camera_direction_vec3_id) references vec3 (id),
     foreign key (camera_location_vec3_id) references vec3 (id)
 );
@@ -103,16 +103,17 @@ create unlogged table render_output
     ppm         text                                            not null
 );
 
-create unlogged table color_accumulator
-(
-    r integer check (r >= 0 and r <= 255) not null,
-    g integer check (g >= 0 and g <= 255) not null,
-    b integer check (b >= 0 and b <= 255) not null
-);
-
 create unlogged table bounces
 (
     id bigint primary key generated always as identity not null
+);
+
+create unlogged table sample_accumulator
+(
+    id       bigint primary key generated always as identity not null,
+    color_id bigint,
+
+    foreign key (color_id) references color (id)
 );
 
 
@@ -142,38 +143,132 @@ end;
 $$ language plpgsql;
 
 
---   ###############################
---     Color Accumulator Functions
---   ###############################
+--   ###################
+--     Color Functions
+--   ###################
 
-create or replace function accumulator_sample(_r integer, _g integer, _b integer) returns void as
+create or replace function color_new(_r double precision, _g double precision, _b double precision) returns id_t as
+$$
+declare
+    color_id id_t;
+begin
+    insert into color (r, g, b)
+    values (_r, _g, _b)
+    returning id
+        into color_id;
+    return color_id;
+end;
+$$ language plpgsql;
+
+create or replace function color_new_int(_r integer, _g integer, _b integer) returns id_t as
+$$
+declare
+    color_id id_t;
+begin
+    insert into color (r, g, b)
+    values (_r::double precision / 255,
+            _g::double precision / 255,
+            _b::double precision / 255)
+    returning id into color_id;
+    return color_id;
+end;
+$$ language plpgsql;
+
+
+create or replace function color_multiply_scalar(color_id id_t, factor double precision) returns id_t as
+$$
+declare
+    _color       color%rowtype;
+    new_color_id id_t;
+begin
+    select c.* into _color from color c where c.id = color_id;
+    new_color_id := color_new(_color.r * factor, _color.g * factor, _color.b * factor);
+    return new_color_id;
+end;
+$$ language plpgsql;
+
+create or replace function color_multiply(a_color_id id_t, b_color_id id_t) returns id_t as
+$$
+declare
+    a_color color%rowtype;
+    b_color color%rowtype;
+begin
+    select c.* into a_color from color c where c.id = a_color_id;
+    select c.* into b_color from color c where c.id = b_color_id;
+    return color_new(a_color.r * b_color.r, a_color.g * b_color.g, a_color.b * b_color.b);
+end;
+$$ language plpgsql;
+
+create or replace function color_add(a_color_id id_t, b_color_id id_t) returns id_t as
+$$
+declare
+    a_color color%rowtype;
+    b_color color%rowtype;
+begin
+    select c.* into a_color from color c where c.id = a_color_id;
+    select c.* into b_color from color c where c.id = b_color_id;
+    return color_new(a_color.r + b_color.r, a_color.g + b_color.g, a_color.b + b_color.b);
+end;
+$$ language plpgsql;
+
+
+--   ################################
+--     Sample Accumulator Functions
+--   ################################
+
+create or replace function accumulator_sample_new_int(_r int, _g int, _b int) returns void as
 $$
 begin
-    insert into color_accumulator (r, g, b) values (_r, _g, _b);
+    insert into sample_accumulator (color_id) values (color_new_int(_r, _g, _b));
+end;
+$$ language plpgsql;
+
+create or replace function accumulator_sample_new(_r double precision, _g double precision, _b double precision) returns void as
+$$
+begin
+    insert into sample_accumulator (color_id) values (color_new(_r, _g, _b));
+end;
+$$ language plpgsql;
+
+create or replace function accumulator_sample(_color_id id_t) returns void as
+$$
+begin
+    insert into sample_accumulator (color_id) values (_color_id);
 end;
 $$ language plpgsql;
 
 create or replace function accumulator_clear() returns void as
 $$
 begin
-    delete from color_accumulator;
+    delete from sample_accumulator;
 end;
 $$ language plpgsql;
 
 create or replace function accumulator_commit(clear boolean default true) returns void as
 $$
 declare
-    final_r integer := 0;
-    final_g integer := 0;
-    final_b integer := 0;
+    gamma constant double precision := 2.2;
+--
+    final_r        double precision := 0;
+    final_g        double precision := 0;
+    final_b        double precision := 0;
+    color_vec3_id  id_t;
 begin
-    if (select count(*) from color_accumulator) = 0 then
-        insert into color_accumulator (r, g, b) values (0, 0, 0);
+    if (select count(*) from sample_accumulator) = 0 then
+        insert into sample_accumulator (color_id) values (color_new(0, 0, 0));
     end if;
 
-    select sum(ca.r) / count(*) from color_accumulator ca into final_r;
-    select sum(ca.g) / count(*) from color_accumulator ca into final_g;
-    select sum(ca.b) / count(*) from color_accumulator ca into final_b;
+    select sum(c.r) / count(*), sum(c.g) / count(*), sum(c.b) / count(*)
+    into final_r, final_g, final_b
+    from sample_accumulator a
+             join color c on c.id = a.color_id;
+
+    color_vec3_id := vec_new(final_r ^ gamma, final_g ^ gamma, final_b ^ gamma);
+    color_vec3_id := vec_normalize(color_vec3_id);
+    color_vec3_id := vec_multiply(color_vec3_id, 255);
+
+    select x::integer, y::integer, z::integer into final_r, final_g, final_b from vec3 v where v.id = color_vec3_id;
+
     insert into pixel (r, g, b) values (final_r, final_g, final_b);
 
     if clear then
@@ -369,6 +464,17 @@ begin
 end;
 $$ language plpgsql;
 
+create or replace function vec_new_random_unit() returns id_t as
+$$
+declare
+    _x double precision := random() * 2 - 1;
+    _y double precision := random() * 2 - 1;
+    _z double precision := random() * 2 - 1;
+begin
+    return vec_normalize(vec_new(_x, _y, _z));
+end;
+$$ language plpgsql;
+
 create or replace function vec_copy(vec3_id id_t) returns id_t as
 $$
 declare
@@ -508,24 +614,6 @@ end;
 $$ language plpgsql;
 
 
---   ###################
---     Color Functions
---   ###################
-
-create or replace function color_new(_r integer, _g integer, _b integer) returns id_t as
-$$
-declare
-    color_id id_t;
-begin
-    insert into color (r, g, b)
-    values (_r, _g, _b)
-    returning id
-        into color_id;
-    return color_id;
-end;
-$$ language plpgsql;
-
-
 --   #################
 --     Ray Functions
 --   #################
@@ -567,7 +655,7 @@ $$ language plpgsql;
 --     Ray-Tracing Math
 --   ####################
 
-create or replace function ray_sphere(ray_id id_t, sphere_id id_t) returns id_t as
+create or replace function ray_sphere(_ray_id id_t, _sphere_id id_t) returns id_t as
 $$
 declare
     epsilon               double precision := 10e-6;
@@ -603,11 +691,11 @@ begin
     select r, s, dir, org, loc
     into tmp_select_record
     from ray r
-             join sphere s on s.id = sphere_id
+             join sphere s on s.id = _sphere_id
              join vec3 dir on dir.id = r.direction_vec3_id
              join vec3 org on org.id = r.origin_vec3_id
              join vec3 loc on loc.id = s.location_vec3_id
-    where r.id = ray_id;
+    where r.id = _ray_id;
 
     _ray := tmp_select_record.r;
     _sphere := tmp_select_record.s;
@@ -641,9 +729,11 @@ begin
     if t1 > epsilon then
         t := t1;
     end if;
-    if t2 > epsilon and (t is null or t2 < t) then
+
+    if (t2 > epsilon) and (t is null or t2 < t) then
         t := t2;
     end if;
+
     if t is null then
         return null;
     end if;
@@ -658,7 +748,7 @@ begin
         into intersection_vec3d_id;
 
     insert into intersection (ray_id, sphere_id, point_vec3_id, distance)
-    values (ray_id, sphere_id, intersection_vec3d_id, t)
+    values (_ray_id, _sphere_id, intersection_vec3d_id, t)
     returning id
         into intersection_id;
 
@@ -666,63 +756,38 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function first_intersection(ray_id id_t) returns id_t as
+create or replace function first_intersection(_ray_id id_t) returns id_t as
 $$
 declare
-    intersection_id id_t;
+    _sphere             sphere%rowType       := null;
+    sphere_count        integer              := (select count(*)
+                                                 from sphere);
+    sphere_index        integer              := 0;
+    first_inter         intersection%rowType = null;
+    tmp_intersection_id id_t                 = null;
+    tmp_intersection    intersection%rowtype = null;
 begin
-    select id
-    into intersection_id
-    from (select ray_sphere(ray_id, s.id) as id
-          from sphere s) _intersection
-    where id is not null
-    order by (select distance
-              from intersection
-              where id = _intersection.id) asc
-    limit 1;
-    return intersection_id;
-end;
-$$ language plpgsql;
+    while sphere_index < sphere_count
+        loop
+            select s.* into _sphere from sphere s offset sphere_index limit 1;
 
-create or replace function ray_direction(x integer, y integer, deflection double precision) returns id_t as
-$$
-declare
-    width                  integer          := (select property_get('width'));
-    height                 integer          := (select property_get('height'));
-    deflect_x              double precision := -deflection + ((2 * deflection) / width) * x;
-    deflect_y              double precision := -deflection + ((2 * deflection) / height) * y;
-    dir_vec3_id            id_t;
-    normalized_dir_vec3_id id_t;
-begin
-    insert into vec3 (x, y, z)
-    values (deflect_x, deflect_y, 100)
-    returning vec3.id
-        into dir_vec3_id;
-    normalized_dir_vec3_id := vec_normalize(dir_vec3_id);
-    return normalized_dir_vec3_id;
-end;
-$$ language plpgsql;
+            select ray_sphere(_ray_id, _sphere.id) into tmp_intersection_id;
 
-create or replace function screen_ray(_x integer, _y integer, deflection double precision) returns id_t as
-$$
-declare
-    width       integer = (select property_get('width'));
-    height      integer = (select property_get('height'));
-    ray_id      id_t;
-    org_vec3_id id_t;
-    dir_vec3_id id_t    = (select ray_direction(_x, _y, deflection));
-begin
-    insert into vec3 (x, y, z)
-    values (_x, _y, 0)
-    returning id
-        into org_vec3_id;
+            if tmp_intersection_id is null then
+                sphere_index := sphere_index + 1;
+                continue;
+            end if;
 
-    insert into ray (origin_vec3_id, direction_vec3_id)
-    values (org_vec3_id, dir_vec3_id)
-    returning id
-        into ray_id;
+            select i.* into tmp_intersection from intersection i where i.id = tmp_intersection_id;
 
-    return ray_id;
+            if first_inter is null or tmp_intersection.distance < first_inter.distance then
+                first_inter := tmp_intersection;
+            end if;
+
+            sphere_index := sphere_index + 1;
+        end loop;
+
+    return first_inter.id;
 end;
 $$ language plpgsql;
 
@@ -750,27 +815,41 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function sky_gradient(max_t double precision, t double precision,
-                                        out r integer,
-                                        out g integer,
-                                        out b integer) returns record as
+create or replace function sky(direction_vec3_id id_t, sky_intensity double precision default 0) returns id_t as
 $$
 declare
-    from_r       integer := 0.5 * 255;
-    from_g       integer := 0.7 * 255;
-    from_b       integer := 255;
-    to_r         integer := 255;
-    to_g         integer := 255;
-    to_b         integer := 255;
-    fade         double precision;
-    inverse_fade double precision;
+--  255, 200, 150
+    from_r                       integer := 255;
+    from_g                       integer := 200;
+    from_b                       integer := 150;
+--  70, 130, 220
+    to_r                         integer := 70;
+    to_g                         integer := 130;
+    to_b                         integer := 220;
+--
+    t                            double precision;
+    fade                         double precision;
+    inv_fade                     double precision;
+    color_id                     id_t;
+    incident_direction_elevation double precision;
 begin
-    fade := (1.0 / max_t) * t::double precision;
-    inverse_fade := 1.0 - fade;
-    select (from_r * inverse_fade + to_r * fade),
-           (from_g * inverse_fade + to_g * fade),
-           (from_b * inverse_fade + to_b * fade)
-    into r, g, b;
+    select atan(v.y / sqrt(v.x ^ 2 + v.z ^ 2))
+    into incident_direction_elevation
+    from vec3 v
+    where v.id = direction_vec3_id;
+
+    t := (incident_direction_elevation + pi() / 2) / pi() - 0.25;
+
+    fade := min(max(t::double precision, 0), 1);
+    inv_fade := 1 - fade;
+
+    color_id := color_new_int((((from_r * inv_fade + to_r * fade))::int),
+                              (((from_g * inv_fade + to_g * fade))::int),
+                              (((from_b * inv_fade + to_b * fade)))::int);
+
+    color_id := color_multiply_scalar(color_id, sky_intensity);
+
+    return color_id;
 end;
 $$ language plpgsql;
 
@@ -803,33 +882,35 @@ $$ language plpgsql;
 
 ---------- Shading Functions ----------
 
-create or replace function shade_diffuse(surf_normal_vec3_id id_t, sun_dir_vec3_id id_t,
-                                         ambient_intensity double precision, sphere_id id_t) returns void as
+create or replace function shade_diffuse(surf_normal_vec3_id id_t, sphere_id id_t,
+                                         intersection_point_vec3_id id_t) returns id_t as
 $$
 declare
-    flipped_surf_normal_vec3_id id_t;
-    diffuse_intensity           double precision;
-    sphere_color                color%rowtype;
+    sphere_color_id            id_t;
+    diffuse_reflection_vec3_id id_t;
+    reflection_ray_id          id_t;
+    diffuse_color_id           id_t;
 begin
-    select c.*
-    into sphere_color
-    from sphere s
-             join color c on c.id = s.color_id
-    where s.id = sphere_id;
+    select s.color_id into sphere_color_id from sphere s where s.id = sphere_id;
 
-    flipped_surf_normal_vec3_id := vec_flip(surf_normal_vec3_id);
+    diffuse_reflection_vec3_id := vec_new_random_unit();
 
-    diffuse_intensity := max(ambient_intensity, vec_dot(flipped_surf_normal_vec3_id, sun_dir_vec3_id));
+    if vec_dot(diffuse_reflection_vec3_id, surf_normal_vec3_id) < 0 then
+        diffuse_reflection_vec3_id := vec_multiply(diffuse_reflection_vec3_id, -1);
+    end if;
 
-    perform accumulator_sample((clamp_pixel_value(sphere_color.r::double precision * diffuse_intensity))::integer,
-                               (clamp_pixel_value(sphere_color.g::double precision * diffuse_intensity))::integer,
-                               (clamp_pixel_value(sphere_color.b::double precision * diffuse_intensity))::integer);
+    reflection_ray_id := ray_new(intersection_point_vec3_id, diffuse_reflection_vec3_id);
+    diffuse_color_id := trace_ray(reflection_ray_id);
+    diffuse_color_id := color_multiply(diffuse_color_id, sphere_color_id);
+    diffuse_color_id := color_multiply_scalar(diffuse_color_id, 0.9);
+
+    return diffuse_color_id;
 end;
 $$ language plpgsql;
 
 create or replace function shade_mirror(surf_normal_vec3_id id_t, sphere_id id_t,
                                         incident_direction_vec3_id id_t,
-                                        intersection_point_vec3_id id_t) returns void as
+                                        intersection_point_vec3_id id_t) returns id_t as
 $$
 declare
     sphere_color        color%rowtype;
@@ -845,55 +926,49 @@ begin
     reflected_vector_id := vec_normalize(vec_reflect(incident_direction_vec3_id, surf_normal_vec3_id));
     reflected_ray_id := ray_new(intersection_point_vec3_id, reflected_vector_id);
 
-    perform accumulator_sample(sphere_color.r, sphere_color.g, sphere_color.b);
-    perform trace_ray(reflected_ray_id);
+    return trace_ray(reflected_ray_id);
 end;
 $$ language plpgsql;
 
 ---------------------------------------
 
-create or replace function trace_ray(ray_id id_t) returns void as
+create or replace function trace_ray(ray_id id_t) returns id_t as
 $$
 declare
-    MAX_BOUNCES constant           integer = 10;
-    environment_id                 id_t    := property_environment_id();
+    environment_id                 id_t := property_environment_id();
     ray_direction_vec3_id          id_t;
     first_intersection_id          id_t;
-    ambient_intensity              double precision;
+    _sky_intensity                 double precision;
     camera_dir_vec3_id             id_t;
-    sun_dir_vec3_id                id_t;
     surf_normal_vec3_id            id_t;
+    _bounce_limit                  integer;
     _sphere                        sphere%rowtype;
     incident_ray_direction_vec3_id id_t;
-    incident_ray_elevation         double precision;
     intersection_point_vec3_id     id_t;
-    tmp_color_record               record;
 begin
-    if bounces_count() >= MAX_BOUNCES then
-        return;
-    end if;
-
-    perform bounces_increment();
-
     first_intersection_id := (select first_intersection(ray_id));
 
-    select atan(v.y / sqrt(v.x ^ 2 + v.z ^ 2))
-    into incident_ray_elevation
-    from ray r
-             join vec3 v on v.id = r.direction_vec3_id
-    where r.id = ray_id;
-
-    if first_intersection_id is null then
-        select r, g, b from sky_gradient(1, (incident_ray_elevation + pi() / 2) / pi()) into tmp_color_record;
-        perform accumulator_sample(tmp_color_record.r, tmp_color_record.g, tmp_color_record.b);
-        return;
-    end if;
-
-    select r.direction_vec3_id, e.sun_direction_vec3_id, e.ambient_light_intensity, e.camera_direction_vec3_id
-    into ray_direction_vec3_id, sun_dir_vec3_id, ambient_intensity, camera_dir_vec3_id
+    select r.direction_vec3_id,
+           e.sky_intensity,
+           e.camera_direction_vec3_id,
+           e.bounce_limit
+    into ray_direction_vec3_id, _sky_intensity, camera_dir_vec3_id, _bounce_limit
     from ray r
              join environment e on e.id = environment_id
     where r.id = ray_id;
+
+    select r.direction_vec3_id into incident_ray_direction_vec3_id from ray r where r.id = ray_id;
+
+    if first_intersection_id is null then
+        return sky(incident_ray_direction_vec3_id, _sky_intensity);
+    end if;
+
+    select i.point_vec3_id into intersection_point_vec3_id from intersection i where i.id = first_intersection_id;
+
+    if bounces_count() >= _bounce_limit then
+        return color_new(0, 0, 0);
+    end if;
+    perform bounces_increment();
 
     select s.*
     into _sphere
@@ -901,19 +976,13 @@ begin
              join sphere s on s.id = i.sphere_id
     where i.id = first_intersection_id;
 
-    select r.direction_vec3_id, i.point_vec3_id
-    into incident_ray_direction_vec3_id, intersection_point_vec3_id
-    from intersection i
-             join ray r on r.id = i.ray_id
-    where i.id = first_intersection_id;
-
     surf_normal_vec3_id := surface_normal(first_intersection_id);
 
     if _sphere.shader = 'diffuse'::shader_type then
-        perform shade_diffuse(surf_normal_vec3_id, sun_dir_vec3_id, ambient_intensity, _sphere.id);
+        return shade_diffuse(surf_normal_vec3_id, _sphere.id, intersection_point_vec3_id);
     elsif _sphere.shader = 'mirror'::shader_type then
-        perform shade_mirror(surf_normal_vec3_id, _sphere.id, incident_ray_direction_vec3_id,
-                             intersection_point_vec3_id);
+        return shade_mirror(surf_normal_vec3_id, _sphere.id, incident_ray_direction_vec3_id,
+                            intersection_point_vec3_id);
     end if;
 end;
 $$ language plpgsql;
@@ -928,11 +997,12 @@ declare
     plane_size              double precision;
     camera_loc_vec3_id      id_t;
     camera_dir_vec3_id      id_t;
+    _sample_count           integer;
 --
     pixel_count             integer          := width * height;
     pixel_index             integer          := 0;
     tmp_coordinate_record   record;
-    tmp_color_record        record;
+    tmp_color_id            id_t;
 --
     aspect_ratio            double precision := width::double precision / height::double precision;
     plane_height            double precision;
@@ -958,8 +1028,8 @@ declare
 begin
     raise info 'Started rendering scene with % object(s) to an %x%px output image', (select count(*) from sphere), width, height;
 
-    select e.view_plane_size, e.camera_direction_vec3_id, e.camera_location_vec3_id
-    into plane_size, camera_dir_vec3_id, camera_loc_vec3_id
+    select e.view_plane_size, e.camera_direction_vec3_id, e.camera_location_vec3_id, e.sample_count
+    into plane_size, camera_dir_vec3_id, camera_loc_vec3_id, _sample_count
     from environment e
     where e.id = environment_id;
 
@@ -970,8 +1040,8 @@ begin
     plane_pixel_height := plane_height / height;
 
     world_up_vec3_id := vec_new(0, 1, 0);
-    plane_right_vec3_id := vec_normalize(vec_cross(camera_dir_vec3_id, world_up_vec3_id));
-    plane_up_vec3_id := vec_normalize(vec_cross(plane_right_vec3_id, camera_dir_vec3_id));
+    plane_right_vec3_id := vec_normalize(vec_cross(world_up_vec3_id, camera_dir_vec3_id));
+    plane_up_vec3_id := vec_normalize(vec_cross(camera_dir_vec3_id, plane_right_vec3_id));
 
     -- Offset to the desired plane distance
     plane_top_left_vec3_id := vec_multiply(camera_dir_vec3_id, plane_distance);
@@ -1015,12 +1085,19 @@ begin
             -- Create ray
             tmp_ray := ray_new_plane(camera_loc_vec3_id, tmp_vec3_id);
 
-            -- Shade and push the current pixel
-            perform bounces_clear();
-            select *
-            from trace_ray(tmp_ray)
-            into tmp_color_record;
+            -- Collect samples
+            for _ in 1.._sample_count
+                loop
+                    perform bounces_clear();
 
+                    select *
+                    from trace_ray(tmp_ray)
+                    into tmp_color_id;
+
+                    perform accumulator_sample(tmp_color_id);
+                end loop;
+
+            -- Commit the final sample sum
             perform accumulator_commit();
 
             pixel_index := pixel_index + 1;
@@ -1039,20 +1116,24 @@ $$ language plpgsql;
 create or replace function setup_scene() returns void as
 $$
 declare
-    _color_id id_t;
-    vec3_id   id_t;
+    _color_id                     id_t;
+    vec3_id                       id_t;
+--
+    GROUND_SPHERE_RADIUS constant double precision := 100000;
 begin
-    _color_id := color_new(231, 76, 60);
-    vec3_id := vec_new(11, 0, 50);
-    insert into sphere (color_id, location_vec3_id, radius, shader) values (_color_id, vec3_id, 10, 'mirror');
+    --     _color_id := color_new_int(231, 76, 60);
+--     vec3_id := vec_new(11, 0, 50);
+--     insert into sphere (color_id, location_vec3_id, radius, shader) values (_color_id, vec3_id, 10, 'diffuse');
 
-    _color_id := color_new(46, 204, 113);
-    vec3_id := vec_new(-11, 0, 50);
-    insert into sphere (color_id, location_vec3_id, radius, shader) values (_color_id, vec3_id, 10, 'diffuse');
+    _color_id := color_new_int(52, 152, 219);
+    vec3_id := vec_new(0, 10, 50);
+    insert into sphere (color_id, location_vec3_id, radius, shader)
+    values (_color_id, vec3_id, 10, 'diffuse');
 
-    _color_id := color_new(255, 255, 255);
-    vec3_id := vec_new(0, -1000, 30);
-    insert into sphere (color_id, location_vec3_id, radius, shader) values (_color_id, vec3_id, 1000, 'mirror');
+    _color_id := color_new_int(255, 255, 255);
+    vec3_id := vec_new(0, -GROUND_SPHERE_RADIUS - 1, 50);
+    insert into sphere (color_id, location_vec3_id, radius, shader)
+    values (_color_id, vec3_id, GROUND_SPHERE_RADIUS, 'diffuse');
 end;
 $$ language plpgsql;
 
@@ -1072,46 +1153,42 @@ $$ language plpgsql;
 
 create or replace function configure_render_params(width int default 300,
                                                    height int default 300,
-                                                   sun_dir_x double precision default -1,
-                                                   sun_dir_y double precision default -1,
-                                                   sun_dir_z double precision default -1,
-                                                   ambient_light double precision default 0,
-                                                   _view_plane_size double precision default 1,
+                                                   _sample_count integer default 1,
+                                                   _bounce_limit integer default 10,
+                                                   _sky_intensity double precision default 1,
+                                                   _view_plane_size double precision default 2,
                                                    camera_loc_x double precision default 0,
-                                                   camera_loc_y double precision default 0,
+                                                   camera_loc_y double precision default 10,
                                                    camera_loc_z double precision default 0,
                                                    camera_dir_x double precision default 0,
-                                                   camera_dir_y double precision default 0,
+                                                   camera_dir_y double precision default -0.15,
                                                    camera_dir_z double precision default 1) returns void as
 $$
 declare
-    sun_dir_vec3_id               id_t;
-    sun_dir_normalized_vec3_id    id_t;
     camera_loc_vec3_id            id_t;
     camera_dir_vec3_id            id_t;
     camera_dir_normalized_vec3_id id_t;
     environment_id                id_t;
 begin
-    raise info 'Renderer set to %x%px output image. Sun direction is (%, %, %).', width, height, sun_dir_x, sun_dir_y, sun_dir_z;
-
-    sun_dir_vec3_id := vec_new(sun_dir_x, sun_dir_y, sun_dir_z);
-    sun_dir_normalized_vec3_id := vec_normalize(sun_dir_vec3_id);
+    raise info 'Renderer set to %x%px output image.', width, height;
 
     camera_loc_vec3_id := vec_new(camera_loc_x, camera_loc_y, camera_loc_z);
 
     camera_dir_vec3_id := vec_new(camera_dir_x, camera_dir_y, camera_dir_z);
     camera_dir_normalized_vec3_id := vec_normalize(camera_dir_vec3_id);
 
-    insert into environment (sun_direction_vec3_id,
-                             ambient_light_intensity,
-                             camera_location_vec3_id,
+    insert into environment (camera_location_vec3_id,
                              camera_direction_vec3_id,
-                             view_plane_size)
-    values (sun_dir_normalized_vec3_id,
-            ambient_light,
-            camera_loc_vec3_id,
+                             view_plane_size,
+                             sample_count,
+                             bounce_limit,
+                             sky_intensity)
+    values (camera_loc_vec3_id,
             camera_dir_normalized_vec3_id,
-            _view_plane_size)
+            _view_plane_size,
+            _sample_count,
+            _bounce_limit,
+            _sky_intensity)
     returning id
         into environment_id;
 
@@ -1128,7 +1205,7 @@ $$
     begin
         start_time := clock_timestamp();
         perform reset_state();
-        perform configure_render_params(200, 200, 1, -1, 1, 0.25);
+        perform configure_render_params(100, 100, 20, 10, 1.0);
         perform setup_scene();
         perform render();
         perform write_output_ppm();

@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.weisj:darklaf-native-utils:3.1.1" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.weisj" artifactId="darklaf-native-utils" version="3.1.1" baseVersion="3.1.1" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.weisj/darklaf-native-utils/3.1.1/d6c2eed8247e42806346896ac3a93ef86a2441a9/darklaf-native-utils-3.1.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

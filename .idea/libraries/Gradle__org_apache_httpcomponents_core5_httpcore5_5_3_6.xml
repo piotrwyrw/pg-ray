@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.httpcomponents.core5:httpcore5:5.3.6" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="org.apache.httpcomponents.core5" artifactId="httpcore5" version="5.3.6" baseVersion="5.3.6" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.httpcomponents.core5/httpcore5/5.3.6/2c7f0d11747f9485a02c9f622c0f0477d7ce8677/httpcore5-5.3.6.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

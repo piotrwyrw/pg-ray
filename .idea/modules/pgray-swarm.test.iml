@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module external.linked.project.id="pgray-swarm:test" external.linked.project.path="$MODULE_DIR$/../../pgray-swarm" external.root.project.path="$MODULE_DIR$/../../pgray-swarm" external.system.id="GRADLE" external.system.module.group="org.piotrwyrw" external.system.module.type="sourceSet" external.system.module.version="1.0-SNAPSHOT" type="JAVA_MODULE" version="4">
+  <component name="FacetManager">
+    <facet external-system-id="GRADLE" type="kotlin-language" name="Kotlin">
+      <configuration version="5" platform="JVM 17" allPlatforms="JVM [17]" useProjectSettings="false" pureKotlinSourceFolders="$MODULE_DIR$/../../pgray-swarm/src/test/kotlin;/Users/piotrwyrw/vanadium/pg-ray/pgray-swarm/src/main/kotlin">
+        <additionalVisibleModuleNames>pgray-swarm:main</additionalVisibleModuleNames>
+        <compilerSettings />
+        <compilerArguments>
+          <flagArguments>
+            <flagArg name="allowNoSourceFiles" arg="true" />
+            <flagArg name="noReflect" arg="true" />
+            <flagArg name="noStdlib" arg="true" />
+          </flagArguments>
+          <stringArguments>
+            <stringArg name="destination" arg="$MODULE_DIR$/../../pgray-swarm/build/classes/kotlin/test" />
+            <stringArg name="jvmTarget" arg="17" />
+            <stringArg name="moduleName" arg="pgray-swarm_test" />
+            <stringArg name="apiVersion" arg="2.3" />
+            <stringArg name="languageVersion" arg="2.3" />
+          </stringArguments>
+          <arrayArguments>
+            <arrayArg name="pluginClasspaths">
+              <args>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-jvm/2.3.0/ba43e136497851b3079ebcc4b0f9c462c1410eab/kotlin-scripting-jvm-2.3.0.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-common/2.3.0/ed166c96b64d63647c7ee106da3a8a1c95596285/kotlin-scripting-common-2.3.0.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.3.0/ebc4eb2b6e6c91b6c844c1e3183920d86f2ef656/kotlin-stdlib-2.3.0.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-script-runtime/2.3.0/fb89e0ab064ea19d08c6d6bc9f044d16c5487fc4/kotlin-script-runtime-2.3.0.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/13.0/919f0dfe192fb4e063e7dacadee7f8bb9a2672a9/annotations-13.0.jar</arg>
+              </args>
+            </arrayArg>
+            <arrayArg name="pluginOptions" />
+          </arrayArguments>
+        </compilerArguments>
+      </configuration>
+    </facet>
+  </component>
+  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_17">
+    <output-test url="file://$MODULE_DIR$/../../pgray-swarm/build/classes/kotlin/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../pgray-swarm/src/test">
+      <sourceFolder url="file://$MODULE_DIR$/../../pgray-swarm/src/test/kotlin" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/../../pgray-swarm/src/test/resources" type="java-test-resource" />
+    </content>
+    <orderEntry type="jdk" jdkName="corretto-17" jdkType="JavaSDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="pgray-swarm.main" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-test:2.3.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib:2.3.0" level="project" />
+    <orderEntry type="library" name="Gradle: ch.qos.logback:logback-classic:1.4.11" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.docker-java:docker-java-core:3.7.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.zaxxer:HikariCP:7.0.2" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.docker-java:docker-java-transport-httpclient5:3.7.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.slf4j:slf4j-api:2.0.17" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-core:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: org.postgresql:postgresql:42.7.10" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-test-junit5:2.3.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains:annotations:13.0" level="project" />
+    <orderEntry type="library" name="Gradle: ch.qos.logback:logback-core:1.4.11" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.docker-java:docker-java-api:3.7.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.docker-java:docker-java-transport:3.7.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.commons:commons-compress:1.28.0" level="project" />
+    <orderEntry type="library" name="Gradle: commons-io:commons-io:2.21.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.commons:commons-lang3:3.19.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.fasterxml.jackson.core:jackson-databind:2.20.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.guava:guava:33.4.8-jre" level="project" />
+    <orderEntry type="library" name="Gradle: org.bouncycastle:bcpkix-jdk18on:1.82" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.httpcomponents.client5:httpclient5:5.5.1" level="project" />
+    <orderEntry type="library" name="Gradle: net.java.dev.jna:jna:5.18.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-theme:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-iconset:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-property-loader:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-utils:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: org.junit.jupiter:junit-jupiter-api:5.10.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.fasterxml.jackson.core:jackson-annotations:2.20" level="project" />
+    <orderEntry type="library" name="Gradle: commons-codec:commons-codec:1.19.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.fasterxml.jackson.core:jackson-core:2.20.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.guava:failureaccess:1.0.3" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava" level="project" />
+    <orderEntry type="library" name="Gradle: org.jspecify:jspecify:1.0.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.errorprone:error_prone_annotations:2.36.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.j2objc:j2objc-annotations:3.0.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.bouncycastle:bcutil-jdk18on:1.82" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.httpcomponents.core5:httpcore5-h2:5.3.6" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.httpcomponents.core5:httpcore5:5.3.6" level="project" />
+    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-theme-spec:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: org.junit.platform:junit-platform-commons:1.10.1" level="project" />
+    <orderEntry type="library" name="Gradle: org.opentest4j:opentest4j:1.3.0" level="project" />
+    <orderEntry type="library" scope="PROVIDED" name="Gradle: org.apiguardian:apiguardian-api:1.1.2" level="project" />
+    <orderEntry type="library" name="Gradle: org.bouncycastle:bcprov-jdk18on:1.82" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-platform-decorations:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-compatibility:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-platform-preferences:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-windows:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-macos:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-native-utils:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-platform-base:3.1.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:swing-extensions-laf-support:0.1.3" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:jsvg:2.0.0" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.checkerframework:checker-qual:3.52.0" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.junit.platform:junit-platform-launcher:1.10.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.junit.jupiter:junit-jupiter-engine:5.10.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:swing-extensions-visual-padding:0.1.3" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.junit.platform:junit-platform-engine:1.10.1" level="project" />
+  </component>
+  <component name="TestModuleProperties" production-module="pgray-swarm.main" />
+</module>

@@ -3,6 +3,9 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/pg-ray.iml" filepath="$PROJECT_DIR$/.idea/pg-ray.iml" />
+      <module fileurl="file://$PROJECT_DIR$/pgray-swarm.iml" filepath="$PROJECT_DIR$/pgray-swarm.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/pgray-swarm.main.iml" filepath="$PROJECT_DIR$/.idea/modules/pgray-swarm.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/pgray-swarm.test.iml" filepath="$PROJECT_DIR$/.idea/modules/pgray-swarm.test.iml" />
     </modules>
   </component>
 </project>

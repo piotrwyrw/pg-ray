@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.weisj:darklaf-platform-preferences:3.1.1" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.weisj" artifactId="darklaf-platform-preferences" version="3.1.1" baseVersion="3.1.1" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.weisj/darklaf-platform-preferences/3.1.1/fa7216fc8564dae7762d20dbea8ede7f36ba3622/darklaf-platform-preferences-3.1.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
