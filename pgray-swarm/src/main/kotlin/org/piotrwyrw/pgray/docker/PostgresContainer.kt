@@ -1,7 +1,8 @@
 package org.piotrwyrw.pgray.docker
 
-data class WorkerContainer(
-    val id: String,
+data class PostgresContainer(
+    val containerId: String,
+    val volumeName: String,
     val name: String,
     val port: Int
 ) {

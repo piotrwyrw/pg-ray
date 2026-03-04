@@ -1,8 +1,8 @@
 package org.piotrwyrw.pgray.ui
 
-import org.piotrwyrw.pgray.RenderingOrchestrator
-import java.awt.BasicStroke
+import org.piotrwyrw.pgray.render.RenderingOrchestrator
 import java.awt.Color
+import java.awt.GradientPaint
 import java.awt.Graphics
 import java.awt.Graphics2D
 import javax.swing.JPanel
@@ -41,15 +41,24 @@ class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
         imageHeight = height
 
         aspect = width.toDouble() / height.toDouble()
-        revalidate()
-        repaint()
+    }
+
+    private fun Graphics.drawCenteredString(str: String, x: Int, y: Int, width: Int, height: Int) {
+        font = font.deriveFont((height * 0.2).toFloat())
+        val strWidth = fontMetrics.stringWidth(str)
+        val drawX = x + width / 2 - strWidth / 2
+        val drawY = y + height / 2 + fontMetrics.ascent / 2
+        drawString(str, drawX, drawY)
     }
 
     override fun paintComponent(g: Graphics) {
+        val g2d = g as Graphics2D
+        val metrics = g.fontMetrics
+
         g.color = Color.BLACK
         g.fillRect(0, 0, width, height)
 
-        orchestrator.tiles.forEach { tile ->
+        orchestrator.getTiles().forEachIndexed { index, tile ->
             val fromX = (tile.fromX.toDouble() / imageWidth) * width
             val fromY = (tile.fromY.toDouble() / imageHeight) * height
 
@@ -64,11 +73,33 @@ class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
             val w = tileWidth.roundToInt()
             val h = tileHeight.roundToInt()
 
-            g.color = tile.viewportColor
+            val paint = g2d.paint
+
+            g2d.paint = GradientPaint(
+                fromX.toFloat(),
+                fromY.toFloat(),
+                tile.viewportColor,
+                toX.toFloat(),
+                toY.toFloat(),
+                tile.viewportColor.darker()
+            )
+
             g.fillRect(fromX.roundToInt(), fromY.roundToInt(), tileWidth.roundToInt(), tileHeight.roundToInt())
+
+            g.paint = paint
 
             g.color = Color.black
             g.drawRect(ax, ay, w, h)
+
+            // Tile number indicator
+            g.color = Color.WHITE
+            g.drawCenteredString(
+                (index + 1).toString(),
+                fromX.toInt(),
+                fromY.toInt(),
+                tileWidth.toInt(),
+                tileHeight.toInt()
+            )
         }
     }
 }

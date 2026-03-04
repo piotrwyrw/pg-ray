@@ -858,16 +858,28 @@ $$ language plpgsql;
 --     Renderer Functions
 --   ######################
 
-create or replace function write_output_ppm() returns id_t as
+create or replace function write_output_ppm(width integer default null,
+                                            height integer default null) returns id_t as
 $$
 declare
-    width            integer := (select property_get('width'));
-    height           integer := (select property_get('height'));
-    ppm_header       text    := format(E'P3\n%s %s\n255\n', width, height);
-    ppm_body         text;
+    img_width        integer := width;
+    img_height       integer := height;
+    ppm_header       text;
+    ppm_body         text    = '';
     render_output_id id_t;
 begin
     raise info 'Writing output image as PPM';
+
+    if width is null then
+        width := (select property_get('width'));
+    end if;
+
+    if height is null then
+        height := (select property_get('height'));
+    end if;
+
+    ppm_header := format(E'P3\n%s %s\n255\n', width, height);
+
     select string_agg(format('%s %s %s', p.r, p.g, p.b), E'\n' order by p.id)
     into ppm_body
     from pixel p;
@@ -987,11 +999,14 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function render() returns void as
+create or replace function render(tile_x_from integer,
+                                  tile_y_from integer,
+                                  tile_x_to integer,
+                                  tile_y_to integer) returns void as
 $$
 declare
-    width                   integer          := property_width();
-    height                  integer          := property_height();
+    full_image_width        integer          := property_width();
+    full_image_height       integer          := property_height();
     environment_id          id_t             := property_environment_id();
 --
     plane_size              double precision;
@@ -999,12 +1014,9 @@ declare
     camera_dir_vec3_id      id_t;
     _sample_count           integer;
 --
-    pixel_count             integer          := width * height;
-    pixel_index             integer          := 0;
-    tmp_coordinate_record   record;
     tmp_color_id            id_t;
 --
-    aspect_ratio            double precision := width::double precision / height::double precision;
+    aspect_ratio            double precision;
     plane_height            double precision;
     plane_width             double precision;
 --
@@ -1025,8 +1037,22 @@ declare
     current_percentage      integer          := 0;
 --
     render_start_timestamp  timestamptz;
+--
+    pixel_x                 integer;
+    pixel_y                 integer;
+    tile_width              integer          := (tile_x_to - tile_x_from);
+    tile_height             integer          := (tile_y_to - tile_y_from);
+    tile_pixel_count        integer          := tile_width * tile_height;
+    rendered_pixel_count    integer          := 0;
 begin
-    raise info 'Started rendering scene with % object(s) to an %x%px output image', (select count(*) from sphere), width, height;
+    raise info 'Started rendering region (%, %; %, %) size (%, %)  of scene with % object(s). Original image size is %x%px', tile_x_from, tile_y_from, tile_x_to, tile_y_to, tile_width, tile_height, (select count(*) from sphere), full_image_width, full_image_height;
+
+    if full_image_width = 0 or full_image_height = 0 or tile_width = 0 or tile_height = 0 then
+        raise notice 'Width or height of tile or image are 0. Nothing to do.';
+        return;
+    end if;
+
+    aspect_ratio := full_image_width::double precision / full_image_height::double precision;
 
     select e.view_plane_size, e.camera_direction_vec3_id, e.camera_location_vec3_id, e.sample_count
     into plane_size, camera_dir_vec3_id, camera_loc_vec3_id, _sample_count
@@ -1036,8 +1062,8 @@ begin
     plane_height := plane_size;
     plane_width := plane_size * aspect_ratio;
 
-    plane_pixel_width := plane_width / width;
-    plane_pixel_height := plane_height / height;
+    plane_pixel_width := plane_width / full_image_width;
+    plane_pixel_height := plane_height / full_image_height;
 
     world_up_vec3_id := vec_new(0, 1, 0);
     plane_right_vec3_id := vec_normalize(vec_cross(world_up_vec3_id, camera_dir_vec3_id));
@@ -1060,54 +1086,53 @@ begin
 
     render_start_timestamp := clock_timestamp();
 
-    while
-        pixel_index < pixel_count
+    for pixel_y in tile_y_from .. tile_y_to - 1
         loop
-            current_percentage =
-                    (((pixel_index + 1)::double precision / pixel_count::double precision) *
-                     100::double precision)::integer;
 
-            -- Convert pixel index to cartesian coordinates
-            select *
-            from itoxy(pixel_index)
-            into tmp_coordinate_record;
-
-            -- Calculate pixel position on the image plane
-            tmp_vec3_id := vec_copy(plane_right_vec3_id);
-            tmp_vec3_id := vec_multiply(tmp_vec3_id, (tmp_coordinate_record.x + 0.5) * plane_pixel_width);
-
-            tmp2_vec3_id := vec_flip(plane_up_vec3_id);
-            tmp2_vec3_id := vec_multiply(tmp2_vec3_id, (tmp_coordinate_record.y + 0.5) * plane_pixel_height);
-
-            tmp_vec3_id := vec_add(tmp_vec3_id, tmp2_vec3_id);
-            tmp_vec3_id := vec_add(tmp_vec3_id, plane_top_left_vec3_id);
-
-            -- Create ray
-            tmp_ray := ray_new_plane(camera_loc_vec3_id, tmp_vec3_id);
-
-            -- Collect samples
-            for _ in 1.._sample_count
+            for pixel_x in tile_x_from .. tile_x_to - 1
                 loop
-                    perform bounces_clear();
+                    current_percentage =
+                            ((rendered_pixel_count::double precision / tile_pixel_count::double precision) *
+                             100::double precision)::integer;
 
-                    select *
-                    from trace_ray(tmp_ray)
-                    into tmp_color_id;
+                    -- Calculate pixel position on the image plane
+                    tmp_vec3_id := vec_copy(plane_right_vec3_id);
+                    tmp_vec3_id := vec_multiply(tmp_vec3_id, (pixel_x + 0.5) * plane_pixel_width);
 
-                    perform accumulator_sample(tmp_color_id);
+                    tmp2_vec3_id := vec_flip(plane_up_vec3_id);
+                    tmp2_vec3_id := vec_multiply(tmp2_vec3_id, (pixel_y + 0.5) * plane_pixel_height);
+
+                    tmp_vec3_id := vec_add(tmp_vec3_id, tmp2_vec3_id);
+                    tmp_vec3_id := vec_add(tmp_vec3_id, plane_top_left_vec3_id);
+
+                    -- Create ray
+                    tmp_ray := ray_new_plane(camera_loc_vec3_id, tmp_vec3_id);
+
+                    -- Collect samples
+                    for _ in 1.._sample_count
+                        loop
+                            perform bounces_clear();
+
+                            select *
+                            from trace_ray(tmp_ray)
+                            into tmp_color_id;
+
+                            perform accumulator_sample(tmp_color_id);
+                        end loop;
+
+                    -- Commit the final sample sum
+                    perform accumulator_commit();
+
+                    rendered_pixel_count := rendered_pixel_count + 1;
+
+                    if last_percentage + 4 < current_percentage then
+                        raise info 'Progress: % (Remaining: %)', (current_percentage || '%'), format_interval(
+                                ((clock_timestamp() - render_start_timestamp) / rendered_pixel_count) *
+                                (tile_pixel_count - rendered_pixel_count));
+                        last_percentage := current_percentage;
+                    end if;
+
                 end loop;
-
-            -- Commit the final sample sum
-            perform accumulator_commit();
-
-            pixel_index := pixel_index + 1;
-
-            if last_percentage + 4 < current_percentage then
-                raise info 'Progress: % (Remaining: %)', (current_percentage || '%'), format_interval(
-                        ((clock_timestamp() - render_start_timestamp) / pixel_index) *
-                        (pixel_count - pixel_index));
-                last_percentage := current_percentage;
-            end if;
 
         end loop;
 end;
@@ -1205,10 +1230,10 @@ $$
     begin
         start_time := clock_timestamp();
         perform reset_state();
-        perform configure_render_params(100, 100, 20, 10, 1.0);
+        perform configure_render_params(100, 100, 50, 20, 1.0);
         perform setup_scene();
-        perform render();
-        perform write_output_ppm();
+        perform render(0, 0, 100, 100);
+        perform write_output_ppm(100, 100);
         end_time := clock_timestamp();
         raise info 'Done (%)', format_interval_between(start_time, end_time);
     end;

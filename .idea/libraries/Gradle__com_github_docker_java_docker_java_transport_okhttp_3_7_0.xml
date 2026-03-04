@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.docker-java:docker-java-transport-okhttp:3.7.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.docker-java" artifactId="docker-java-transport-okhttp" version="3.7.0" baseVersion="3.7.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.docker-java/docker-java-transport-okhttp/3.7.0/2c9cf34fd7e6637912aaa6cb4568382a9413663d/docker-java-transport-okhttp-3.7.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.docker-java/docker-java-transport-okhttp/3.7.0/6d15c0b28e8e8f6e365f7e39b70393394c00112b/docker-java-transport-okhttp-3.7.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
