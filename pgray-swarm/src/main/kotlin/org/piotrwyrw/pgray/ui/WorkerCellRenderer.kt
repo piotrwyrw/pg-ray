@@ -1,15 +1,25 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 package org.piotrwyrw.pgray.ui
 
 import org.piotrwyrw.pgray.Worker
-import org.piotrwyrw.pgray.render.WorkerStatus
-import java.awt.*
+import org.piotrwyrw.pgray.container.status.ContainerHealthStatus
+import org.piotrwyrw.pgray.container.status.ContainerStatus
+import org.piotrwyrw.pgray.ui.theming.ThemeColors
+import java.awt.Component
+import java.awt.Dimension
+import java.awt.Graphics
+import java.awt.GridBagLayout
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListCellRenderer
 import kotlin.math.min
 
-class WorkerCellRenderer : ListCellRenderer<Worker> {
+class WorkerCellRenderer() : ListCellRenderer<Worker> {
     override fun getListCellRendererComponent(
         list: JList<out Worker>,
         value: Worker,
@@ -18,47 +28,75 @@ class WorkerCellRenderer : ListCellRenderer<Worker> {
         cellHasFocus: Boolean
     ): Component {
         return JPanel().apply {
-            val gbc = GridBagConstraints()
             layout = GridBagLayout()
 
-            gbc.weightx = 0.0
-            gbc.weighty = 0.0
-            gbc.gridx = 0
-            gbc.gridy = 0
-            gbc.ipadx = 10
-            gbc.ipady = gbc.ipadx
-            add(object : JPanel() {
-                override fun paintComponent(g: Graphics) {
-                    super.paintComponent(g)
+            gbc {
+                ipadx = 10
+                ipady = ipadx
+            }.let { gbc ->
+                add(object : JPanel() {
+                    override fun paintComponent(g: Graphics) {
+                        super.paintComponent(g)
 
-                    g.color = when (value.status) {
-                        WorkerStatus.RUNNING -> Color.green
-                        WorkerStatus.STOPPED -> Color.red
-                        WorkerStatus.NOT_EXIST -> Color.blue
+                        val containerStatus = value.status.containerStatus
+
+                        g.color = containerStatus.color()
+
+                        val drawFunction = if (containerStatus == ContainerStatus.RUNNING)
+                            g::fillOval
+                        else
+                            g::drawOval
+
+                        val size = min(width, height) - 5
+
+                        drawFunction(width / 2 - size / 2, height / 2 - size / 2, size, size)
                     }
+                }.apply {
+                    preferredSize = Dimension(10, 10)
+                    isOpaque = false
+                }, gbc)
+            }
 
-                    val drawFunction = if (value.status == WorkerStatus.RUNNING)
-                        g::fillOval
-                    else
-                        g::drawOval
+            val healthStatus = value.status.healthStatus
 
-                    val size = min(width, height) - 5
+            gbc(1) {
+                ipadx = 10
+                ipady = ipadx
+            }.let { gbc ->
+                add(object : JPanel() {
+                    override fun paintComponent(g: Graphics) {
+                        super.paintComponent(g)
 
-                    drawFunction(width / 2 - size / 2, height / 2 - size / 2, size, size)
-                }
-            }.apply {
-                preferredSize = Dimension(10, 10)
-                toolTipText = value.status.toString()
-            }, gbc)
+                        g.color = healthStatus.color()
 
-            gbc.gridx = 1
-            gbc.weightx = 1.0
-            gbc.weighty = 1.0
-            gbc.ipadx = 0
-            gbc.ipady = 0
-            gbc.fill = GridBagConstraints.BOTH
-            gbc.insets = Insets(0, 20, 0, 0)
-            add(JLabel("Tile ${value.tileNumber} (${value.status})"), gbc)
+                        val drawFunction = if (healthStatus == ContainerHealthStatus.HEALTHY)
+                            g::fillOval
+                        else
+                            g::drawOval
+
+                        val size = min(width, height) - 5
+
+                        drawFunction(width / 2 - size / 2, height / 2 - size / 2, size, size)
+                    }
+                }.apply {
+                    preferredSize = Dimension(10, 10)
+                    isOpaque = false
+                }, gbc)
+            }
+
+            gbc(2).smInsets.fillBoth.let { gbc ->
+                add(JLabel("Tile ${value.tile.tileNumber}"), gbc)
+            }
+
+            placeholderPanel(3)
+
+            gbc(4).smInsets.fillHorizontal.let { gbc ->
+                add(JLabel(healthStatus.toString().uppercase()).apply {
+                    foreground = healthStatus.color()
+                }, gbc)
+            }
+
+            placeholderPanel(5)
         }
     }
 }

@@ -1,0 +1,131 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+package org.piotrwyrw.pgray.container
+
+import com.github.dockerjava.api.model.*
+import com.github.dockerjava.core.DefaultDockerClientConfig
+import com.github.dockerjava.core.DockerClientImpl
+import com.github.dockerjava.okhttp.OkDockerHttpClient
+import org.piotrwyrw.pgray.container.status.ContainerHealthStatus
+import org.piotrwyrw.pgray.container.status.ContainerStatus
+import org.piotrwyrw.pgray.container.status.WorkerStatus
+import org.piotrwyrw.pgray.container.status.parseHealthStatus
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.time.Duration
+import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
+
+class DockerManager {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
+    private var nextPort = AtomicInteger(50_000)
+
+    private val clientConfig = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
+    private val httpClient = OkDockerHttpClient.Builder()
+        .dockerHost(clientConfig.dockerHost)
+        .readTimeout(10_000)
+        .connectTimeout(10_000)
+        .build()
+
+
+    private val docker = DockerClientImpl.getInstance(clientConfig, httpClient)
+
+    private val containerDataRoot = File("pgray_data")
+
+    init {
+        containerDataRoot.mkdirs()
+    }
+
+    fun startContainer(containerId: String): DockerManager {
+        logger.info("Starting container $containerId")
+        docker.startContainerCmd(containerId).exec()
+        return this
+    }
+
+    fun stopContainer(containerId: String): DockerManager {
+        logger.info("Stopping container $containerId")
+        docker.stopContainerCmd(containerId).exec()
+        return this
+    }
+
+    fun removeContainer(containerId: String): DockerManager {
+        logger.info("Removing container $containerId")
+        docker.removeContainerCmd(containerId).exec()
+        return this
+    }
+
+    fun inspectContainer(containerId: String): WorkerStatus {
+        val response = docker.inspectContainerCmd(containerId).exec()
+
+        val containerStatus =
+            (if (response.state?.running == true)
+                ContainerStatus.RUNNING
+            else
+                ContainerStatus.STOPPED)
+
+        val healthString = response?.state?.health?.status
+
+        val healthStatus = if (healthString != null)
+            parseHealthStatus(healthString)
+        else
+            ContainerHealthStatus.UNDEFINED
+
+        return WorkerStatus(containerStatus, healthStatus)
+    }
+
+    fun allocateNextAvailablePort(): Int {
+        return nextPort.getAndIncrement()
+    }
+
+    fun createPostgresContainer(): PostgresContainer {
+        val name = "pgray-${UUID.randomUUID()}"
+        val volumeName = "pgray-volume-${UUID.randomUUID()}"
+        val port = allocateNextAvailablePort()
+
+        val volume = docker
+            .createVolumeCmd()
+            .withName(volumeName)
+            .exec()
+
+        val createCommand = docker
+            .createContainerCmd("postgres:14-alpine")
+            .withName(name)
+            .withEnv(
+                "POSTGRES_PASSWORD=${PostgresContainer.POSTGRES_PASSWORD}",
+                "POSTGRES_USER=${PostgresContainer.POSTGRES_USER}",
+                "POSTGRES_DB=${PostgresContainer.POSTGRES_DB}"
+            )
+            .withHostConfig(
+                HostConfig.newHostConfig()
+                    .withPortBindings(
+                        PortBinding(
+                            Ports.Binding.bindPort(port),
+                            ExposedPort(PostgresContainer.POSTGRES_PORT)
+                        )
+                    )
+                    .withBinds(
+                        Bind(volumeName, Volume("/var/lib/postgresql/data"))
+                    )
+            )
+            .withHealthcheck(
+                HealthCheck()
+                    .withTest(listOf("CMD-SHELL", "pg_isready -U ${PostgresContainer.POSTGRES_USER}"))
+                    .withInterval(Duration.ofSeconds(2).toNanos())
+                    .withTimeout(Duration.ofSeconds(3).toNanos())
+                    .withRetries(5)
+            )
+
+        val container = createCommand.exec()
+        val warningsStr =
+            if (container.warnings.isEmpty()) "" else " Warnings: ${container.warnings.joinToString("; ")}"
+        logger.info("Container created $name (Exposing $port)$warningsStr")
+
+        val pgContainer = PostgresContainer(container.id, volume.name, name, port)
+        return pgContainer
+    }
+
+}

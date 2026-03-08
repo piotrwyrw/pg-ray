@@ -1,14 +1,19 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 package org.piotrwyrw.pgray
 
 import com.zaxxer.hikari.HikariDataSource
-import org.piotrwyrw.pgray.docker.PostgresContainer
-import org.piotrwyrw.pgray.render.WorkerStatus
+import org.piotrwyrw.pgray.container.PostgresContainer
+import org.piotrwyrw.pgray.container.status.WorkerStatus
 
 data class Worker(
-    val tileNumber: Int,
+    val tile: Tile,
     val container: PostgresContainer,
     val dataSource: HikariDataSource? = null,
-    var status: WorkerStatus = WorkerStatus.STOPPED
+    var status: WorkerStatus = WorkerStatus.stopped()
 ) {
     fun executeQuery(query: String) {
         if (dataSource == null) {

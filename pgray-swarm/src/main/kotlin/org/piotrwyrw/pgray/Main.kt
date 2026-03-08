@@ -1,17 +1,18 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 package org.piotrwyrw.pgray
 
-import com.github.weisj.darklaf.LafManager
-import com.github.weisj.darklaf.theme.DarculaTheme
-import com.github.weisj.darklaf.theme.IntelliJTheme
-import com.github.weisj.darklaf.theme.OneDarkTheme
 import org.piotrwyrw.pgray.render.RenderingOrchestratorImpl
 import org.piotrwyrw.pgray.ui.SwarmFrame
-import javax.swing.SwingUtilities
+import org.piotrwyrw.pgray.ui.theming.ThemeMode
+import org.piotrwyrw.pgray.ui.theming.useTheme
 
 fun main() {
     val orchestrator = RenderingOrchestratorImpl()
-    SwingUtilities.invokeLater {
-        LafManager.install(OneDarkTheme())
+    useTheme(ThemeMode.DARK) {
         SwarmFrame(orchestrator)
     }
 }

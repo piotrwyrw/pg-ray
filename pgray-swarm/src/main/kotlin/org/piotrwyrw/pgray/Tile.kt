@@ -1,29 +1,40 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 package org.piotrwyrw.pgray
 
 import java.awt.Color
 
-val tileColorFrom = Color.decode("#2ecc71")
-val tileColorTo = Color.decode("#70a1ff")
-
 data class Tile(
+    val tileNumber: Int,
     val fromX: Int,
     val fromY: Int,
     val toX: Int,
     val toY: Int,
-    val viewportColor: Color
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
 
-fun tileColor(index: Int, total: Int): Color {
-    val rgbFrom = floatArrayOf(tileColorFrom.red.toFloat(), tileColorFrom.green.toFloat(), tileColorFrom.blue.toFloat())
-    val rgbTo = floatArrayOf(tileColorTo.red.toFloat(), tileColorTo.green.toFloat(), tileColorTo.blue.toFloat())
+        other as Tile
 
-    val t = index.toFloat() / total.toFloat()
+        if (tileNumber != other.tileNumber) return false
+        if (fromX != other.fromX) return false
+        if (fromY != other.fromY) return false
+        if (toX != other.toX) return false
+        if (toY != other.toY) return false
 
-    val rgb = floatArrayOf(
-        rgbFrom[0] + (rgbTo[0] - rgbFrom[0]) * t,
-        rgbFrom[1] + (rgbTo[1] - rgbFrom[1]) * t,
-        rgbFrom[2] + (rgbTo[2] - rgbFrom[2]) * t,
-    )
+        return true
+    }
 
-    return Color(rgb[0].toInt(), rgb[1].toInt(), rgb[2].toInt())
+    override fun hashCode(): Int {
+        var result = tileNumber
+        result = 31 * result + fromX
+        result = 31 * result + fromY
+        result = 31 * result + toX
+        result = 31 * result + toY
+        return result
+    }
 }

@@ -5,6 +5,8 @@
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.weisj/darklaf-theme/3.1.1/5a09b50c13d900d1e49d222406aad6a8a1c0ec96/darklaf-theme-3.1.1.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.weisj/darklaf-theme/3.1.1/fec6d43dfce45029ea2ecbe085b9098153f42b83/darklaf-theme-3.1.1-sources.jar!/" />
+    </SOURCES>
   </library>
 </component>

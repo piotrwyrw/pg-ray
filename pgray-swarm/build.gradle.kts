@@ -12,13 +12,13 @@ repositories {
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 
+    implementation("com.github.weisj:darklaf-core:3.1.1")
+
     implementation("org.slf4j:slf4j-api:2.0.9")
     implementation("ch.qos.logback:logback-classic:1.4.11")
 
     implementation("com.github.docker-java:docker-java-core:3.7.0")
     implementation("com.github.docker-java:docker-java-transport-okhttp:3.7.0")
-
-    implementation("com.github.weisj:darklaf-core:3.1.1")
 
     implementation("com.zaxxer:HikariCP:7.0.2")
     implementation("org.postgresql:postgresql:42.7.10")

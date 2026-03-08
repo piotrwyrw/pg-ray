@@ -1,15 +1,18 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 package org.piotrwyrw.pgray.ui
 
+import org.piotrwyrw.pgray.container.status.ContainerHealthStatus
 import org.piotrwyrw.pgray.render.RenderingOrchestrator
-import java.awt.Color
-import java.awt.GradientPaint
-import java.awt.Graphics
-import java.awt.Graphics2D
+import org.piotrwyrw.pgray.ui.theming.ThemeColors
+import java.awt.*
 import javax.swing.JPanel
-import kotlin.math.roundToInt
+import kotlin.math.floor
 
 class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
-
     private var imageWidth: Int = 0
     private var imageHeight: Int = 0
     private var aspect: Double = 0.0
@@ -52,54 +55,53 @@ class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
     }
 
     override fun paintComponent(g: Graphics) {
-        val g2d = g as Graphics2D
-        val metrics = g.fontMetrics
+        val g2 = g as Graphics2D;
 
         g.color = Color.BLACK
         g.fillRect(0, 0, width, height)
 
-        orchestrator.getTiles().forEachIndexed { index, tile ->
+        val tileCount = orchestrator.getTiles().size
+
+        orchestrator.getTiles().forEach { tile ->
+            val tileWorker = orchestrator.getWorkerOfTile(tile)
+            val healthStatus = (tileWorker?.status?.healthStatus ?: ContainerHealthStatus.UNDEFINED)
+            val healthColor = healthStatus.color()
+
             val fromX = (tile.fromX.toDouble() / imageWidth) * width
             val fromY = (tile.fromY.toDouble() / imageHeight) * height
 
             val toX = (tile.toX.toDouble() / imageWidth) * width
             val toY = (tile.toY.toDouble() / imageHeight) * height
 
-            val tileWidth = toX - fromX
-            val tileHeight = toY - fromY
+            val tileWidth = floor(toX - fromX)
+            val tileHeight = floor(toY - fromY)
 
-            val ax = fromX.roundToInt()
-            val ay = fromY.roundToInt()
-            val w = tileWidth.roundToInt()
-            val h = tileHeight.roundToInt()
+            val ax = floor(fromX).toInt()
+            val ay = floor(fromY).toInt()
+            val w = floor(tileWidth).toInt()
+            val h = floor(tileHeight).toInt()
 
-            val paint = g2d.paint
+            g.color = healthColor
+            g.fillRect(ax, ay, w, h)
 
-            g2d.paint = GradientPaint(
-                fromX.toFloat(),
-                fromY.toFloat(),
-                tile.viewportColor,
-                toX.toFloat(),
-                toY.toFloat(),
-                tile.viewportColor.darker()
-            )
-
-            g.fillRect(fromX.roundToInt(), fromY.roundToInt(), tileWidth.roundToInt(), tileHeight.roundToInt())
-
-            g.paint = paint
-
-            g.color = Color.black
-            g.drawRect(ax, ay, w, h)
+            g.color = ThemeColors.surface.ELEVATION9
+            g.drawRect(ax - 1, ay - 1, w + 1, h + 1)
 
             // Tile number indicator
-            g.color = Color.WHITE
+            g.color = ThemeColors.text.FOREGROUND
             g.drawCenteredString(
-                (index + 1).toString(),
+                tile.tileNumber.toString(),
                 fromX.toInt(),
                 fromY.toInt(),
                 tileWidth.toInt(),
                 tileHeight.toInt()
             )
         }
+
+        if (tileCount > 0) {
+            g.color = ThemeColors.surface.LAYER9
+            g.drawLine(0, 0, width, 0)
+        }
+
     }
 }
