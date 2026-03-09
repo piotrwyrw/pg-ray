@@ -6,13 +6,16 @@
 package org.piotrwyrw.pgray
 
 import org.piotrwyrw.pgray.render.RenderingOrchestratorImpl
-import org.piotrwyrw.pgray.ui.SwarmFrame
+import org.piotrwyrw.pgray.ui.frame.swarm.SwarmFrame
+import org.piotrwyrw.pgray.ui.frame.dialog.DialogOption
+import org.piotrwyrw.pgray.ui.frame.dialog.DialogType
+import org.piotrwyrw.pgray.ui.frame.dialog.MessageDialogFrame
 import org.piotrwyrw.pgray.ui.theming.ThemeMode
 import org.piotrwyrw.pgray.ui.theming.useTheme
 
 fun main() {
     val orchestrator = RenderingOrchestratorImpl()
     useTheme(ThemeMode.DARK) {
-        SwarmFrame(orchestrator)
+        val frame = SwarmFrame(orchestrator).create()
     }
 }

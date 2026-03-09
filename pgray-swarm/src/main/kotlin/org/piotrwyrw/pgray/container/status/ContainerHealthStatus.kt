@@ -5,7 +5,7 @@
 
 package org.piotrwyrw.pgray.container.status
 
-import org.piotrwyrw.pgray.ui.theming.ThemeColors
+import org.piotrwyrw.pgray.ui.theming.Theme
 import java.awt.Color
 
 enum class ContainerHealthStatus {
@@ -15,12 +15,12 @@ enum class ContainerHealthStatus {
     UNHEALTHY;
 
     fun color(): Color {
-        val healthColors = ThemeColors.containerHealth
+        val healthColors = Theme.containerHealth
         return when (this) {
-            UNDEFINED -> healthColors.UNDEFINED
-            STARTING -> healthColors.STARTING
-            HEALTHY -> healthColors.HEALTHY
-            UNHEALTHY -> healthColors.UNHEALTHY
+            UNDEFINED -> healthColors.undefined
+            STARTING -> healthColors.starting
+            HEALTHY -> healthColors.healthy
+            UNHEALTHY -> healthColors.unhealthy
         }
     }
 }

@@ -5,14 +5,14 @@
 
 package org.piotrwyrw.pgray.scheduling
 
-import org.piotrwyrw.pgray.scheduling.contract.SchedulableTask
+import org.piotrwyrw.pgray.scheduling.contract.ISchedulable
 
 data class ScheduledTask<R>(
     val task: () -> R,
     val onSuccess: (R, scheduleAgain: () -> Unit) -> Unit,
     val onError: (Throwable, retry: () -> Unit) -> Unit,
     val priority: Int,
-) : SchedulableTask {
+) : ISchedulable {
     override fun invokeTask(): R {
         return task()
     }

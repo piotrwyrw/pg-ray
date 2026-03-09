@@ -6,13 +6,15 @@
 package org.piotrwyrw.pgray.ui
 
 import org.piotrwyrw.pgray.container.status.ContainerHealthStatus
-import org.piotrwyrw.pgray.render.RenderingOrchestrator
-import org.piotrwyrw.pgray.ui.theming.ThemeColors
-import java.awt.*
+import org.piotrwyrw.pgray.render.contract.IOrchestrator
+import org.piotrwyrw.pgray.ui.theming.Theme
+import java.awt.Color
+import java.awt.Graphics
+import java.awt.Graphics2D
 import javax.swing.JPanel
 import kotlin.math.floor
 
-class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
+class Viewport(val orchestrator: IOrchestrator) : JPanel() {
     private var imageWidth: Int = 0
     private var imageHeight: Int = 0
     private var aspect: Double = 0.0
@@ -64,7 +66,7 @@ class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
 
         orchestrator.getTiles().forEach { tile ->
             val tileWorker = orchestrator.getWorkerOfTile(tile)
-            val healthStatus = (tileWorker?.status?.healthStatus ?: ContainerHealthStatus.UNDEFINED)
+            val healthStatus = tileWorker?.status?.healthStatus ?: ContainerHealthStatus.UNDEFINED
             val healthColor = healthStatus.color()
 
             val fromX = (tile.fromX.toDouble() / imageWidth) * width
@@ -84,11 +86,11 @@ class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
             g.color = healthColor
             g.fillRect(ax, ay, w, h)
 
-            g.color = ThemeColors.surface.ELEVATION9
+            g.color = Theme.accent.accent4
             g.drawRect(ax - 1, ay - 1, w + 1, h + 1)
 
             // Tile number indicator
-            g.color = ThemeColors.text.FOREGROUND
+            g.color = Theme.text.foreground
             g.drawCenteredString(
                 tile.tileNumber.toString(),
                 fromX.toInt(),
@@ -99,7 +101,7 @@ class Viewport(val orchestrator: RenderingOrchestrator) : JPanel() {
         }
 
         if (tileCount > 0) {
-            g.color = ThemeColors.surface.LAYER9
+            g.color = Theme.surface.layer9
             g.drawLine(0, 0, width, 0)
         }
 

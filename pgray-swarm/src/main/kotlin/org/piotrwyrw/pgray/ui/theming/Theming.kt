@@ -6,10 +6,11 @@
 package org.piotrwyrw.pgray.ui.theming
 
 import com.github.weisj.darklaf.LafManager
-import com.github.weisj.darklaf.theme.Theme
 import org.piotrwyrw.pgray.brightness
 import org.piotrwyrw.pgray.invoke
 import java.awt.Color
+import java.awt.image.BufferedImage
+import javax.swing.ImageIcon
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import kotlin.reflect.KProperty
@@ -37,67 +38,88 @@ private class ThemedColor(light: Color, dark: Color) {
         throw IllegalStateException("Cannot reassign a ThemedColor")
 }
 
-object ThemeColors {
+object Theme {
     class Surface {
-        val GROUND: Color
+        val ground: Color
             get() = UIManager.getColor("background") ?: Color.BLACK
 
-        val ELEVATION1 get() = GROUND.brightness(1.5)
-        val ELEVATION2 get() = GROUND.brightness(2.0)
-        val ELEVATION3 get() = GROUND.brightness(2.5)
-        val ELEVATION4 get() = GROUND.brightness(3.0)
-        val ELEVATION5 get() = GROUND.brightness(3.5)
-        val ELEVATION6 get() = GROUND.brightness(4.0)
-        val ELEVATION7 get() = GROUND.brightness(4.5)
-        val ELEVATION8 get() = GROUND.brightness(5.0)
-        val ELEVATION9 get() = GROUND.brightness(5.5)
+        val elevation1 get() = ground.brightness(1.5)
+        val elevation2 get() = ground.brightness(2.0)
+        val elevation3 get() = ground.brightness(2.5)
+        val elevation4 get() = ground.brightness(3.0)
+        val elevation5 get() = ground.brightness(3.5)
+        val elevation6 get() = ground.brightness(4.0)
+        val elevation7 get() = ground.brightness(4.5)
+        val elevation8 get() = ground.brightness(5.0)
+        val elevation9 get() = ground.brightness(5.5)
 
-        val LAYER1 get() = GROUND.brightness(0.9)
-        val LAYER2 get() = GROUND.brightness(0.8)
-        val LAYER3 get() = GROUND.brightness(0.7)
-        val LAYER4 get() = GROUND.brightness(0.6)
-        val LAYER5 get() = GROUND.brightness(0.5)
-        val LAYER6 get() = GROUND.brightness(0.4)
-        val LAYER7 get() = GROUND.brightness(0.3)
-        val LAYER8 get() = GROUND.brightness(0.2)
-        val LAYER9 get() = GROUND.brightness(0.1)
+        val layer1 get() = ground.brightness(0.9)
+        val layer2 get() = ground.brightness(0.8)
+        val layer3 get() = ground.brightness(0.7)
+        val layer4 get() = ground.brightness(0.6)
+        val layer5 get() = ground.brightness(0.5)
+        val layer6 get() = ground.brightness(0.4)
+        val layer7 get() = ground.brightness(0.3)
+        val layer8 get() = ground.brightness(0.2)
+        val layer9 get() = ground.brightness(0.1)
     }
 
     val surface = Surface()
 
     class ContainerStatus {
-        val CONTAINER_ABSENT get() = surface.LAYER5
-        val CONTAINER_STOPPED by ThemedColor(light = "#e69b93", dark = "#e74c3c")
-        val CONTAINER_RUNNING by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
+        val absent get() = surface.layer5
+        val stopped by ThemedColor(light = "#e69b93", dark = "#e74c3c")
+        val running by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
     }
 
     class ContainerHealth {
-        val UNDEFINED get() = surface.LAYER5
-        val STARTING by ThemedColor(light = "#edd679", dark = "#f39c12")
-        val HEALTHY by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
-        val UNHEALTHY by ThemedColor(light = "#e69b93", dark = "#c0392b")
+        val undefined get() = surface.layer5
+        val starting by ThemedColor(light = "#edd679", dark = "#f39c12")
+        val healthy by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
+        val unhealthy by ThemedColor(light = "#e69b93", dark = "#c0392b")
+    }
+
+    class Icon {
+        private val empty = ImageIcon(BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB))
+        val error get() = UIManager.getIcon("OptionPane.errorIcon") ?: empty
+        val info get() = UIManager.getIcon("OptionPane.informationIcon") ?: empty
+        val warning get() = UIManager.getIcon("OptionPane.warningIcon") ?: empty
     }
 
     class Text {
-        val FOREGROUND by ThemedColor(
+        val foreground by ThemedColor(
             light = Color.black,
             dark = Color.white
         )
     }
 
-    val accent by ThemedColor(light = "#ff0040", dark = "#c90032")
+    class Accent {
+        val accentColor by ThemedColor(light = "#ff0040", dark = "#c90032")
+
+        val accent1 get() = accentColor.brightness(0.9)
+        val accent2 get() = accentColor.brightness(0.8)
+        val accent3 get() = accentColor.brightness(0.7)
+        val accent4 get() = accentColor.brightness(0.6)
+        val accent5 get() = accentColor.brightness(0.5)
+        val accent6 get() = accentColor.brightness(0.4)
+        val accent7 get() = accentColor.brightness(0.3)
+        val accent8 get() = accentColor.brightness(0.2)
+        val accent9 get() = accentColor.brightness(0.1)
+    }
 
     val containerStatus = ContainerStatus()
     val containerHealth = ContainerHealth()
+    val icon = Icon()
     val text = Text()
+    val accent = Accent()
 }
 
 fun useTheme(mode: ThemeMode, then: () -> Unit) {
     ThemeSetup.mode = mode
 
-    val theme: Theme = when (mode) {
-        ThemeMode.LIGHT -> IntellijThemeWithAccent(ThemeColors.accent)
-        ThemeMode.DARK -> OneDarkThemeWithAccent(ThemeColors.accent)
+    val theme: com.github.weisj.darklaf.theme.Theme = when (mode) {
+        ThemeMode.LIGHT -> IntellijThemeWithAccent(Theme.accent.accentColor)
+        ThemeMode.DARK -> OneDarkThemeWithAccent(Theme.accent.accentColor)
     }
 
     SwingUtilities.invokeLater {

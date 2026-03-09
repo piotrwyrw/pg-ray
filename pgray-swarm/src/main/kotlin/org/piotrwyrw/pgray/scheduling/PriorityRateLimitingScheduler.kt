@@ -7,8 +7,8 @@ package org.piotrwyrw.pgray.scheduling
 
 import org.piotrwyrw.pgray.component1
 import org.piotrwyrw.pgray.component2
-import org.piotrwyrw.pgray.scheduling.contract.SchedulableTask
-import org.piotrwyrw.pgray.scheduling.contract.Scheduler
+import org.piotrwyrw.pgray.scheduling.contract.ISchedulable
+import org.piotrwyrw.pgray.scheduling.contract.IScheduler
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.*
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * A scheduler implementation that limits the number of simultaneous tasks
  */
-class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_SIMULTANEOUS_TASKS) : Scheduler {
+class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_SIMULTANEOUS_TASKS) : IScheduler {
 
     companion object {
         val DEFAULT_MAX_SIMULTANEOUS_TASKS = 10
@@ -47,7 +47,7 @@ class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_
 
     private val schedulerRunning = AtomicBoolean(false)
 
-    private val scheduledTasks = PriorityBlockingQueue<SchedulableTask>(
+    private val scheduledTasks = PriorityBlockingQueue<ISchedulable>(
         maxSimultaneousTaskCount,
         compareByDescending { it.priority() }
     )
@@ -95,7 +95,7 @@ class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_
         }
     }
 
-    private fun submit(task: SchedulableTask) {
+    private fun submit(task: ISchedulable) {
         scheduledTasks.put(task)
     }
 

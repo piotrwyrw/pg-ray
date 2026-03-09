@@ -5,7 +5,7 @@
 
 package org.piotrwyrw.pgray.container.status
 
-import org.piotrwyrw.pgray.ui.theming.ThemeColors
+import org.piotrwyrw.pgray.ui.theming.Theme
 import java.awt.Color
 
 enum class ContainerStatus {
@@ -14,11 +14,11 @@ enum class ContainerStatus {
     RUNNING;
 
     fun color(): Color {
-        val statusColors = ThemeColors.containerStatus
+        val statusColors = Theme.containerStatus
         return when (this) {
-            ABSENT -> statusColors.CONTAINER_ABSENT
-            STOPPED -> statusColors.CONTAINER_STOPPED
-            RUNNING -> statusColors.CONTAINER_RUNNING
+            ABSENT -> statusColors.absent
+            STOPPED -> statusColors.stopped
+            RUNNING -> statusColors.running
         }
     }
 }

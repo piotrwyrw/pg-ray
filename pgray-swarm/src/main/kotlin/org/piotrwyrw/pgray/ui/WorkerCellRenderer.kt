@@ -5,10 +5,9 @@
 
 package org.piotrwyrw.pgray.ui
 
-import org.piotrwyrw.pgray.Worker
+import org.piotrwyrw.pgray.render.Worker
 import org.piotrwyrw.pgray.container.status.ContainerHealthStatus
 import org.piotrwyrw.pgray.container.status.ContainerStatus
-import org.piotrwyrw.pgray.ui.theming.ThemeColors
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Graphics

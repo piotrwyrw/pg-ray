@@ -55,3 +55,7 @@ fun Color.brightness(brightness: Double): Color {
     )
 }
 
+infix fun<T> T.apply(block: T.() -> Unit): T {
+    this.block()
+    return this
+}

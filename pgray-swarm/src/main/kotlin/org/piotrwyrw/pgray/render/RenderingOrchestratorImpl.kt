@@ -7,12 +7,11 @@ package org.piotrwyrw.pgray.render
 
 import com.github.dockerjava.api.exception.InternalServerErrorException
 import com.github.dockerjava.api.exception.NotFoundException
-import org.piotrwyrw.pgray.Tile
-import org.piotrwyrw.pgray.Worker
 import org.piotrwyrw.pgray.container.DockerManager
 import org.piotrwyrw.pgray.container.status.ContainerStatus
 import org.piotrwyrw.pgray.db.DatabaseManager
-import org.piotrwyrw.pgray.render.listener.RenderingOrchestratorListener
+import org.piotrwyrw.pgray.render.contract.IOrchestrator
+import org.piotrwyrw.pgray.render.contract.IOrchestratorListener
 import org.piotrwyrw.pgray.scheduling.Priority
 import org.piotrwyrw.pgray.scheduling.PriorityRateLimitingScheduler
 import org.slf4j.LoggerFactory
@@ -20,7 +19,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.swing.SwingUtilities
 
-class RenderingOrchestratorImpl : RenderingOrchestrator {
+class RenderingOrchestratorImpl : IOrchestrator {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -29,7 +28,7 @@ class RenderingOrchestratorImpl : RenderingOrchestrator {
 
     private val tiles = mutableListOf<Tile>()
     private val workers = hashMapOf<String, Worker>()
-    private val listeners = mutableListOf<RenderingOrchestratorListener>()
+    private val listeners = mutableListOf<IOrchestratorListener>()
 
     private val scheduler = PriorityRateLimitingScheduler()
 
@@ -45,11 +44,11 @@ class RenderingOrchestratorImpl : RenderingOrchestrator {
             }, 0, 1, TimeUnit.SECONDS)
     }
 
-    override fun subscribe(listener: RenderingOrchestratorListener) {
+    override fun subscribe(listener: IOrchestratorListener) {
         listeners += listener
     }
 
-    fun notify(invocations: RenderingOrchestratorListener.() -> Unit) {
+    fun notify(invocations: IOrchestratorListener.() -> Unit) {
         listeners.forEach { listener ->
             SwingUtilities.invokeLater {
                 listener.invocations()
