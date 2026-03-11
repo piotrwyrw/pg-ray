@@ -49,7 +49,7 @@ class SwarmWindow(
         })
     }
 
-    private val titleBarColor = Theme.accent.titleBarColor
+    private val titleBarColor = Theme.titleBar.titleBarColor
 
     private val gui = object {
         val leftPanel = JPanel().apply {
@@ -352,7 +352,7 @@ class SwarmWindow(
             gui.leftPanel.add(actionsWrapper, gbc)
         }
 
-        gbc(0, 4).fillBoth.let { gbc ->
+        gbc(0, 4).smInsets.fillBoth.let { gbc ->
             gui.leftPanel.add(workerListWrapper, gbc)
         }
     }

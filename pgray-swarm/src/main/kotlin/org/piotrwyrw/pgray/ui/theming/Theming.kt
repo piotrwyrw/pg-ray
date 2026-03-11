@@ -6,8 +6,7 @@
 package org.piotrwyrw.pgray.ui.theming
 
 import com.formdev.flatlaf.FlatLaf
-import com.formdev.flatlaf.intellijthemes.FlatGrayIJTheme
-import com.formdev.flatlaf.intellijthemes.FlatOneDarkIJTheme
+import com.formdev.flatlaf.FlatPropertiesLaf
 import com.formdev.flatlaf.util.SystemInfo
 import org.piotrwyrw.pgray.brightness
 import org.piotrwyrw.pgray.invoke
@@ -114,8 +113,10 @@ object Theme {
         val accent7 get() = accentColor.brightness(0.3)
         val accent8 get() = accentColor.brightness(0.2)
         val accent9 get() = accentColor.brightness(0.1)
+    }
 
-        val titleBarColor by ThemedColor(light = { accentColor.brightness(1.3) }, dark = { accent2 })
+    class TitleBar {
+        val titleBarColor get() = UIManager.getColor("TitleBar.background") ?: Color.black
     }
 
     val containerStatus = ContainerStatus()
@@ -123,6 +124,21 @@ object Theme {
     val icon = Icon()
     val text = Text()
     val accent = Accent()
+    val titleBar = TitleBar()
+}
+
+object ThemeLoader {
+    val DARK_THEME_PATH = "/themes/FlatSwarmDarkTheme.properties"
+    val LIGHT_THEME_PATH = "/themes/FlatSwarmLightTheme.properties"
+
+    private val darkThemeInputStream = javaClass.getResourceAsStream(DARK_THEME_PATH)
+        ?: throw IllegalStateException("Could not load dark theme: ${DARK_THEME_PATH}")
+
+    private val lightThemeInputStream = javaClass.getResourceAsStream(LIGHT_THEME_PATH)
+        ?: throw IllegalStateException("Could not load light theme: ${LIGHT_THEME_PATH}")
+
+    val darkTheme by lazy { FlatPropertiesLaf("FlatSwarmDarkTheme", darkThemeInputStream) }
+    val lightTheme by lazy { FlatPropertiesLaf("FlatSwarmLightTheme", lightThemeInputStream) }
 }
 
 fun useTheme(mode: ThemeMode, then: () -> Unit) {
@@ -135,8 +151,8 @@ fun useTheme(mode: ThemeMode, then: () -> Unit) {
     }
 
     val laf = when (mode) {
-        ThemeMode.LIGHT -> FlatGrayIJTheme()
-        ThemeMode.DARK -> FlatOneDarkIJTheme()
+        ThemeMode.LIGHT -> ThemeLoader.lightTheme
+        ThemeMode.DARK -> ThemeLoader.darkTheme
     }
 
     val accentColor = laf.defaults.getColor("Component.accentColor")

@@ -1,0 +1,17 @@
+<!--
+  ~ Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+  ~ SPDX-License-Identifier: GPL-3.0-or-later
+  -->
+
+<!-- logback.xml -->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>%date{HH:mm:ss.SSS} %highlight(%-5level) %cyan([%-20thread]) %magenta(%-30.29logger) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
