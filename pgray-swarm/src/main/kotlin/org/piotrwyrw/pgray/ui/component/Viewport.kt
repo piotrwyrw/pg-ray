@@ -86,7 +86,7 @@ class Viewport(val orchestrator: IOrchestrator) : JPanel() {
             g.color = healthColor
             g.fillRect(ax, ay, w, h)
 
-            g.color = Theme.accent.accent4
+            g.color = Theme.accent.accent2
             g.drawRect(ax - 1, ay - 1, w + 1, h + 1)
 
             // Tile number indicator

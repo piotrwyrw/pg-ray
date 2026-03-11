@@ -13,6 +13,7 @@ import org.piotrwyrw.pgray.invoke
 import java.awt.Color
 import java.awt.image.BufferedImage
 import javax.swing.ImageIcon
+import javax.swing.JFrame
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import kotlin.reflect.KProperty
@@ -46,7 +47,7 @@ class ThemedColor(light: () -> Color, dark: () -> Color) {
 object Theme {
     class Surface {
         val ground: Color
-            get() = UIManager.getColor("Panel.background") ?: Color.BLACK
+            get() = UIManager.getColor("Panel.background") ?: Color.WHITE
 
         val elevation1 get() = ground.brightness(1.5)
         val elevation2 get() = ground.brightness(2.0)
@@ -67,6 +68,15 @@ object Theme {
         val layer7 get() = ground.brightness(0.3)
         val layer8 get() = ground.brightness(0.2)
         val layer9 get() = ground.brightness(0.1)
+        val layer11 get() = ground.brightness(0.09)
+        val layer12 get() = ground.brightness(0.08)
+        val layer13 get() = ground.brightness(0.07)
+        val layer14 get() = ground.brightness(0.06)
+        val layer15 get() = ground.brightness(0.05)
+        val layer16 get() = ground.brightness(0.04)
+        val layer17 get() = ground.brightness(0.03)
+        val layer18 get() = ground.brightness(0.02)
+        val layer19 get() = ground.brightness(0.01)
     }
 
     val surface = Surface()
@@ -78,7 +88,7 @@ object Theme {
     }
 
     class ContainerHealth {
-        val undefined get() = surface.layer5
+        val undefined by ThemedColor(light = surface.layer2, dark = surface.layer14)
         val starting by ThemedColor(light = "#edd679", dark = "#f39c12")
         val healthy by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
         val unhealthy by ThemedColor(light = "#e69b93", dark = "#c0392b")
@@ -141,7 +151,7 @@ object ThemeLoader {
     val lightTheme by lazy { FlatPropertiesLaf("FlatSwarmLightTheme", lightThemeInputStream) }
 }
 
-fun useTheme(mode: ThemeMode, then: () -> Unit) {
+fun useTheme(mode: ThemeMode, then: () -> Unit = {}) {
     ThemeSetup.mode = mode
 
     if (SystemInfo.isMacOS) {
@@ -160,6 +170,12 @@ fun useTheme(mode: ThemeMode, then: () -> Unit) {
 
     SwingUtilities.invokeLater {
         FlatLaf.setup(laf)
+
+        for (window in JFrame.getWindows()) {
+            SwingUtilities.updateComponentTreeUI(window)
+            PropertyBinder.updateAllBindings(window)
+        }
+
         then()
     }
 }

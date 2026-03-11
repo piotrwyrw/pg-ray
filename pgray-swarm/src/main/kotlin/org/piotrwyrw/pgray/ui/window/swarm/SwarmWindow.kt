@@ -13,7 +13,10 @@ import org.piotrwyrw.pgray.render.contract.IOrchestrator
 import org.piotrwyrw.pgray.render.contract.IOrchestratorListener
 import org.piotrwyrw.pgray.ui.*
 import org.piotrwyrw.pgray.ui.component.Viewport
+import org.piotrwyrw.pgray.ui.theming.PropertyBinder.bind
 import org.piotrwyrw.pgray.ui.theming.Theme
+import org.piotrwyrw.pgray.ui.theming.ThemeMode
+import org.piotrwyrw.pgray.ui.theming.useTheme
 import org.piotrwyrw.pgray.ui.window.dialog.TextViewDialogWindow
 import java.awt.Dimension
 import java.awt.GridBagConstraints
@@ -47,6 +50,18 @@ class SwarmWindow(
                 }
             })
         })
+        add(JMenu("Appearance") apply {
+            add(JMenuItem("Use Dark Theme") apply {
+                addActionListener {
+                    useTheme(ThemeMode.DARK)
+                }
+            })
+            add(JMenuItem("Use Light Theme") apply {
+                addActionListener {
+                    useTheme(ThemeMode.LIGHT)
+                }
+            })
+        })
     }
 
     private val titleBarColor = Theme.titleBar.titleBarColor
@@ -59,7 +74,7 @@ class SwarmWindow(
 
         val rightPanel = JPanel().apply {
             layout = GridBagLayout()
-            background = Theme.surface.layer1
+            bind({ background = it }) { Theme.surface.layer1 }
         }
 
         val horizontalSplit = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel)
@@ -80,7 +95,7 @@ class SwarmWindow(
 
         val statusBar = JPanel().apply {
             layout = GridBagLayout()
-            background = Theme.surface.layer2
+            bind({ background = it }) { Theme.surface.layer2 }
         }
         val statusLabel = JLabel()
         val statusBarProgressBar = JProgressBar(JProgressBar.HORIZONTAL).apply {
@@ -91,7 +106,6 @@ class SwarmWindow(
         val workerListModel = DefaultListModel<Worker>()
         val workerList = JList(workerListModel).apply {
             cellRenderer = WorkerCellRenderer()
-            background = Theme.surface.ground
         }
 
         val workersScrollPane = JScrollPane(workerList)
@@ -380,7 +394,7 @@ class SwarmWindow(
 
         gbc(0, 1).xlInsets.fillBoth.let { gbc ->
             gui.rightPanel.add(JPanel().apply {
-                background = Theme.surface.layer1
+                bind({ background = it }) { Theme.surface.layer1 }
                 add(gui.viewport)
             }, gbc)
         }
