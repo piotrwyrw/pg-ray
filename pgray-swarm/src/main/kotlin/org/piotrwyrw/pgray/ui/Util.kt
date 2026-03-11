@@ -5,6 +5,8 @@
 
 package org.piotrwyrw.pgray.ui
 
+import org.piotrwyrw.pgray.apply
+import org.piotrwyrw.pgray.let
 import java.awt.GridBagConstraints
 import java.awt.Insets
 import javax.swing.JComponent
@@ -72,8 +74,8 @@ val GridBagConstraints.fillBoth: GridBagConstraints
         fill = GridBagConstraints.BOTH
     }
 
-fun JComponent.placeholderPanel(x: Int = 0, y: Int = 0) = gbc(x, y).fillBoth.let { gbc ->
-    add(JPanel().apply {
+fun JComponent.emptyPanel(x: Int = 0, y: Int = 0) = gbc(x, y).fillBoth let { gbc ->
+    add(JPanel() apply {
         isOpaque = false
     }, gbc)
 }

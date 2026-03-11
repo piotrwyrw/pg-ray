@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<module external.linked.project.id="pgray-swarm:main" external.linked.project.path="$MODULE_DIR$/../../pgray-swarm" external.root.project.path="$MODULE_DIR$/../../pgray-swarm" external.system.id="GRADLE" external.system.module.group="org.piotrwyrw" external.system.module.type="sourceSet" external.system.module.version="1.0-SNAPSHOT" type="JAVA_MODULE" version="4">
+<module external.linked.project.id="pgray-swarm:main" external.linked.project.path="$MODULE_DIR$/../../pgray-swarm" external.root.project.path="$MODULE_DIR$/../../pgray-swarm" external.system.id="GRADLE" external.system.module.group="org.piotrwyrw" external.system.module.type="sourceSet" external.system.module.version="1.0.0" type="JAVA_MODULE" version="4">
   <component name="FacetManager">
     <facet external-system-id="GRADLE" type="kotlin-language" name="Kotlin">
       <configuration version="5" platform="JVM 17" allPlatforms="JVM [17]" useProjectSettings="false" pureKotlinSourceFolders="$MODULE_DIR$/../../pgray-swarm/src/test/kotlin;/Users/piotrwyrw/vanadium/pg-ray/pgray-swarm/src/main/kotlin">
@@ -33,29 +33,25 @@
       </configuration>
     </facet>
   </component>
-  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_17">
+  <component name="NewModuleRootManager">
     <output url="file://$MODULE_DIR$/../../pgray-swarm/build/classes/kotlin/main" />
     <exclude-output />
     <content url="file://$MODULE_DIR$/../../pgray-swarm/src/main">
       <sourceFolder url="file://$MODULE_DIR$/../../pgray-swarm/src/main/kotlin" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/../../pgray-swarm/src/main/resources" type="java-resource" />
     </content>
-    <orderEntry type="jdk" jdkName="corretto-17" jdkType="JavaSDK" />
+    <orderEntry type="jdk" jdkName="temurin-17" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib:2.3.0" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-core:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.formdev:flatlaf:3.7.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.formdev:flatlaf-intellij-themes:3.7.1" level="project" />
     <orderEntry type="library" name="Gradle: ch.qos.logback:logback-classic:1.4.11" level="project" />
     <orderEntry type="library" name="Gradle: com.github.docker-java:docker-java-transport-okhttp:3.7.0" level="project" />
     <orderEntry type="library" name="Gradle: com.github.docker-java:docker-java-core:3.7.0" level="project" />
     <orderEntry type="library" name="Gradle: com.zaxxer:HikariCP:7.0.2" level="project" />
     <orderEntry type="library" name="Gradle: org.slf4j:slf4j-api:2.0.17" level="project" />
     <orderEntry type="library" name="Gradle: org.postgresql:postgresql:42.7.10" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains:annotations:23.0.0" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-theme:3.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-iconset:3.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-property-loader:3.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-utils:3.1.1" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains:annotations:13.0" level="project" />
     <orderEntry type="library" name="Gradle: ch.qos.logback:logback-core:1.4.11" level="project" />
     <orderEntry type="library" name="Gradle: com.squareup.okhttp3:okhttp:3.14.9" level="project" />
     <orderEntry type="library" name="Gradle: net.java.dev.jna:jna:5.18.1" level="project" />
@@ -67,7 +63,6 @@
     <orderEntry type="library" name="Gradle: com.fasterxml.jackson.core:jackson-databind:2.20.1" level="project" />
     <orderEntry type="library" name="Gradle: com.google.guava:guava:33.4.8-jre" level="project" />
     <orderEntry type="library" name="Gradle: org.bouncycastle:bcpkix-jdk18on:1.82" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.weisj:darklaf-theme-spec:3.1.1" level="project" />
     <orderEntry type="library" name="Gradle: com.squareup.okio:okio:1.17.2" level="project" />
     <orderEntry type="library" name="Gradle: com.fasterxml.jackson.core:jackson-annotations:2.20" level="project" />
     <orderEntry type="library" name="Gradle: commons-codec:commons-codec:1.19.0" level="project" />
@@ -79,16 +74,6 @@
     <orderEntry type="library" name="Gradle: com.google.j2objc:j2objc-annotations:3.0.0" level="project" />
     <orderEntry type="library" name="Gradle: org.bouncycastle:bcutil-jdk18on:1.82" level="project" />
     <orderEntry type="library" name="Gradle: org.bouncycastle:bcprov-jdk18on:1.82" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-platform-decorations:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-compatibility:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-platform-preferences:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-windows:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-macos:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-native-utils:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:darklaf-platform-base:3.1.1" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:swing-extensions-laf-support:0.1.3" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:jsvg:2.0.0" level="project" />
     <orderEntry type="library" scope="RUNTIME" name="Gradle: org.checkerframework:checker-qual:3.52.0" level="project" />
-    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.github.weisj:swing-extensions-visual-padding:0.1.3" level="project" />
   </component>
 </module>

@@ -8,6 +8,7 @@ package org.piotrwyrw.pgray
 import java.awt.Color
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 fun Duration.toPrettyString(): String {
     val days = this.toDays()
@@ -47,15 +48,27 @@ operator fun Color.component3() = blue
 
 fun Color.brightness(brightness: Double): Color {
     val (r, g, b) = this
-    val rgbRange = 0.0 .. 255.0
-    return Color(
-        (red * brightness).coerceIn(rgbRange).toInt(),
-        (green * brightness).coerceIn(rgbRange).toInt(),
-        (blue * brightness).coerceIn(rgbRange).toInt()
-    )
+
+    // Use HSB for darkening
+    if (brightness <= 1f) {
+        val hsb = FloatArray(3)
+        Color.RGBtoHSB(r, g, b, hsb)
+
+        val newBrt = (hsb[2] * brightness).toFloat().coerceAtMost(1f)
+        return Color.getHSBColor(hsb[0], hsb[1], newBrt)
+    }
+
+    val t = (brightness - 1).coerceIn(0.0, 1.0)
+    val newR = (r + (255 - r) * t).roundToInt()
+    val newG = (g + (255 - g) * t).roundToInt()
+    val newB = (b + (255 - b) * t).roundToInt()
+
+    return Color(newR, newG, newB)
 }
 
-infix fun<T> T.apply(block: T.() -> Unit): T {
+inline infix fun <T> T.apply(block: T.() -> Unit): T {
     this.block()
     return this
 }
+
+inline infix fun <T, R> T.let(block: (T) -> R): R = block(this)

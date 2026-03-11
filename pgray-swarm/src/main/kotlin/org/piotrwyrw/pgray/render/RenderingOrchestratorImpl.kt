@@ -7,9 +7,9 @@ package org.piotrwyrw.pgray.render
 
 import com.github.dockerjava.api.exception.InternalServerErrorException
 import com.github.dockerjava.api.exception.NotFoundException
-import org.piotrwyrw.pgray.container.DockerManager
-import org.piotrwyrw.pgray.container.status.ContainerStatus
 import org.piotrwyrw.pgray.db.DatabaseManager
+import org.piotrwyrw.pgray.docker.DockerManager
+import org.piotrwyrw.pgray.docker.status.ContainerStatus
 import org.piotrwyrw.pgray.render.contract.IOrchestrator
 import org.piotrwyrw.pgray.render.contract.IOrchestratorListener
 import org.piotrwyrw.pgray.scheduling.Priority
@@ -24,7 +24,7 @@ class RenderingOrchestratorImpl : IOrchestrator {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private val dockerManager: DockerManager = DockerManager()
-    private val databaseManager: DatabaseManager = DatabaseManager()
+    private val dbManager: DatabaseManager = DatabaseManager()
 
     private val tiles = mutableListOf<Tile>()
     private val workers = hashMapOf<String, Worker>()
@@ -32,11 +32,11 @@ class RenderingOrchestratorImpl : IOrchestrator {
 
     private val scheduler = PriorityRateLimitingScheduler()
 
-    init {
-        startInspectionThread()
-    }
+    override fun getDockerManager(): DockerManager = dockerManager
 
-    private fun startInspectionThread() {
+    override fun getDatabaseManager(): DatabaseManager = dbManager
+
+    override fun startInspectionThread() {
         logger.info("Started inspection thread")
         Executors.newSingleThreadScheduledExecutor()
             .scheduleAtFixedRate({
@@ -165,7 +165,7 @@ class RenderingOrchestratorImpl : IOrchestrator {
             if (t is InternalServerErrorException && t.message?.lowercase()
                     ?.contains("port\\s+is\\s+already\\s+allocated".toRegex()) ?: false
             ) {
-                val newPort = dockerManager.allocateNextAvailablePort()
+                val newPort = dockerManager.allocNextAvailablePort()
                 logger.warn("Failed to start worker ${worker.container.containerId}: Port (${worker.container.port}) is already allocated. Trying again with port ($newPort)")
                 retry()
                 return@submit

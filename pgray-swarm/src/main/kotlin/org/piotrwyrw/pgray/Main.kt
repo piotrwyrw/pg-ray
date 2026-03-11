@@ -6,16 +6,19 @@
 package org.piotrwyrw.pgray
 
 import org.piotrwyrw.pgray.render.RenderingOrchestratorImpl
-import org.piotrwyrw.pgray.ui.frame.swarm.SwarmFrame
-import org.piotrwyrw.pgray.ui.frame.dialog.DialogOption
-import org.piotrwyrw.pgray.ui.frame.dialog.DialogType
-import org.piotrwyrw.pgray.ui.frame.dialog.MessageDialogFrame
 import org.piotrwyrw.pgray.ui.theming.ThemeMode
 import org.piotrwyrw.pgray.ui.theming.useTheme
+import org.piotrwyrw.pgray.ui.window.splash.SplashWindow
+import org.piotrwyrw.pgray.ui.window.swarm.SwarmWindow
 
 fun main() {
     val orchestrator = RenderingOrchestratorImpl()
     useTheme(ThemeMode.DARK) {
-        val frame = SwarmFrame(orchestrator).create()
+        val frame = SwarmWindow(orchestrator)
+        frame.create()
+        SplashWindow(orchestrator) { splash ->
+            splash.dispose()
+            frame.isVisible = true
+        }.create()
     }
 }

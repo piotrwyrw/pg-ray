@@ -7,7 +7,7 @@ package org.piotrwyrw.pgray.db
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.piotrwyrw.pgray.container.PostgresContainer
+import org.piotrwyrw.pgray.docker.PostgresContainer
 
 class DatabaseManager {
 

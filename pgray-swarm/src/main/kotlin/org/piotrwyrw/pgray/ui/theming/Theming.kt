@@ -5,7 +5,10 @@
 
 package org.piotrwyrw.pgray.ui.theming
 
-import com.github.weisj.darklaf.LafManager
+import com.formdev.flatlaf.FlatLaf
+import com.formdev.flatlaf.intellijthemes.FlatGrayIJTheme
+import com.formdev.flatlaf.intellijthemes.FlatOneDarkIJTheme
+import com.formdev.flatlaf.util.SystemInfo
 import org.piotrwyrw.pgray.brightness
 import org.piotrwyrw.pgray.invoke
 import java.awt.Color
@@ -15,23 +18,26 @@ import javax.swing.SwingUtilities
 import javax.swing.UIManager
 import kotlin.reflect.KProperty
 
-enum class ThemeMode {
-    LIGHT, DARK
+enum class ThemeMode(val macApplicationAppearance: String) {
+    LIGHT("NSAppearanceNameAqua"),
+    DARK("NSAppearanceNameDarkAqua")
 }
 
 object ThemeSetup {
     var mode: ThemeMode = ThemeMode.LIGHT
 }
 
-private class ThemedColor(light: Color, dark: Color) {
+class ThemedColor(light: () -> Color, dark: () -> Color) {
     private val _lightThemeColor = light
     private val _darkThemeColor = dark
 
-    constructor(light: String, dark: String) : this(light(), dark())
+    constructor(light: String, dark: String) : this({ light() }, { dark() })
+
+    constructor(light: Color, dark: Color) : this({ light }, { dark })
 
     operator fun getValue(thisRef: Any?, property: KProperty<*>): Color = when (ThemeSetup.mode) {
-        ThemeMode.LIGHT -> _lightThemeColor
-        ThemeMode.DARK -> _darkThemeColor
+        ThemeMode.LIGHT -> _lightThemeColor()
+        ThemeMode.DARK -> _darkThemeColor()
     }
 
     operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Color): Nothing =
@@ -41,7 +47,7 @@ private class ThemedColor(light: Color, dark: Color) {
 object Theme {
     class Surface {
         val ground: Color
-            get() = UIManager.getColor("background") ?: Color.BLACK
+            get() = UIManager.getColor("Panel.background") ?: Color.BLACK
 
         val elevation1 get() = ground.brightness(1.5)
         val elevation2 get() = ground.brightness(2.0)
@@ -91,10 +97,13 @@ object Theme {
             light = Color.black,
             dark = Color.white
         )
+
+        val titleLabelFontSize = 16f
+        val textAreaFontSize = 14f
     }
 
     class Accent {
-        val accentColor by ThemedColor(light = "#ff0040", dark = "#c90032")
+        var accentColor: Color = Color.black // Fallback color. This will be changed on LAF init
 
         val accent1 get() = accentColor.brightness(0.9)
         val accent2 get() = accentColor.brightness(0.8)
@@ -105,6 +114,8 @@ object Theme {
         val accent7 get() = accentColor.brightness(0.3)
         val accent8 get() = accentColor.brightness(0.2)
         val accent9 get() = accentColor.brightness(0.1)
+
+        val titleBarColor by ThemedColor(light = { accentColor.brightness(1.3) }, dark = { accent2 })
     }
 
     val containerStatus = ContainerStatus()
@@ -117,14 +128,22 @@ object Theme {
 fun useTheme(mode: ThemeMode, then: () -> Unit) {
     ThemeSetup.mode = mode
 
-    val theme: com.github.weisj.darklaf.theme.Theme = when (mode) {
-        ThemeMode.LIGHT -> IntellijThemeWithAccent(Theme.accent.accentColor)
-        ThemeMode.DARK -> OneDarkThemeWithAccent(Theme.accent.accentColor)
+    if (SystemInfo.isMacOS) {
+        System.setProperty("apple.awt.application.appearance", mode.macApplicationAppearance)
+        System.setProperty("apple.awt.application.name", "Swarm");
+        System.setProperty("apple.laf.useScreenMenuBar", "true")
     }
 
+    val laf = when (mode) {
+        ThemeMode.LIGHT -> FlatGrayIJTheme()
+        ThemeMode.DARK -> FlatOneDarkIJTheme()
+    }
+
+    val accentColor = laf.defaults.getColor("Component.accentColor")
+    Theme.accent.accentColor = accentColor
+
     SwingUtilities.invokeLater {
-        LafManager.setDecorationsEnabled(true)
-        LafManager.install(theme)
+        FlatLaf.setup(laf)
         then()
     }
 }

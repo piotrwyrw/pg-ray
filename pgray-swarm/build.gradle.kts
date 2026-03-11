@@ -1,18 +1,19 @@
 plugins {
     kotlin("jvm") version "2.3.0"
+    application
+    id("org.beryx.runtime") version "2.0.1"
 }
 
 group = "org.piotrwyrw"
-version = "1.0-SNAPSHOT"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-
-    implementation("com.github.weisj:darklaf-core:3.1.1")
+    implementation("com.formdev:flatlaf:3.7.1")
+    implementation("com.formdev:flatlaf-intellij-themes:3.7.1")
 
     implementation("org.slf4j:slf4j-api:2.0.9")
     implementation("ch.qos.logback:logback-classic:1.4.11")
@@ -26,8 +27,38 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+application {
+    mainClass.set("org.piotrwyrw.pgray.MainKt")
+
+    applicationDefaultJvmArgs = listOf(
+        "-Dsun.java2d.metal=false",
+        "-Dsun.java2d.opengl=false"
+    )
+}
+
 kotlin {
     jvmToolchain(17)
+}
+
+runtime {
+    options.set(listOf("--strip-debug", "--compress", "2"))
+    jpackage {
+        imageName = "Swarm"
+        installerType = "dmg"
+        jvmArgs.addAll(
+            listOf(
+                "-Dsun.java2d.metal=false",
+                "-Dsun.java2d.opengl=false"
+            )
+        )
+        installerOptions.addAll(
+            listOf(
+                "--app-version", project.version.toString(),
+                "--vendor", "Piotr K. Wyrwas",
+                "--license-file", "../LICENSE"
+            )
+        )
+    }
 }
 
 tasks.test {

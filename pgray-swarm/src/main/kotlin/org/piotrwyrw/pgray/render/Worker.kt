@@ -6,9 +6,8 @@
 package org.piotrwyrw.pgray.render
 
 import com.zaxxer.hikari.HikariDataSource
-import org.piotrwyrw.pgray.render.Tile
-import org.piotrwyrw.pgray.container.PostgresContainer
-import org.piotrwyrw.pgray.container.status.WorkerStatus
+import org.piotrwyrw.pgray.docker.PostgresContainer
+import org.piotrwyrw.pgray.docker.status.WorkerStatus
 
 data class Worker(
     val tile: Tile,

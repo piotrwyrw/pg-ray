@@ -5,9 +5,11 @@
 
 package org.piotrwyrw.pgray.ui
 
+import org.piotrwyrw.pgray.apply
+import org.piotrwyrw.pgray.let
 import org.piotrwyrw.pgray.render.Worker
-import org.piotrwyrw.pgray.container.status.ContainerHealthStatus
-import org.piotrwyrw.pgray.container.status.ContainerStatus
+import org.piotrwyrw.pgray.docker.status.ContainerHealthStatus
+import org.piotrwyrw.pgray.docker.status.ContainerStatus
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Graphics
@@ -26,13 +28,13 @@ class WorkerCellRenderer() : ListCellRenderer<Worker> {
         isSelected: Boolean,
         cellHasFocus: Boolean
     ): Component {
-        return JPanel().apply {
+        return JPanel() apply {
             layout = GridBagLayout()
 
             gbc {
                 ipadx = 10
                 ipady = ipadx
-            }.let { gbc ->
+            } let { gbc ->
                 add(object : JPanel() {
                     override fun paintComponent(g: Graphics) {
                         super.paintComponent(g)
@@ -50,7 +52,7 @@ class WorkerCellRenderer() : ListCellRenderer<Worker> {
 
                         drawFunction(width / 2 - size / 2, height / 2 - size / 2, size, size)
                     }
-                }.apply {
+                } apply {
                     preferredSize = Dimension(10, 10)
                     isOpaque = false
                 }, gbc)
@@ -61,7 +63,7 @@ class WorkerCellRenderer() : ListCellRenderer<Worker> {
             gbc(1) {
                 ipadx = 10
                 ipady = ipadx
-            }.let { gbc ->
+            } let { gbc ->
                 add(object : JPanel() {
                     override fun paintComponent(g: Graphics) {
                         super.paintComponent(g)
@@ -77,25 +79,25 @@ class WorkerCellRenderer() : ListCellRenderer<Worker> {
 
                         drawFunction(width / 2 - size / 2, height / 2 - size / 2, size, size)
                     }
-                }.apply {
+                } apply {
                     preferredSize = Dimension(10, 10)
                     isOpaque = false
                 }, gbc)
             }
 
-            gbc(2).smInsets.fillBoth.let { gbc ->
+            gbc(2).smInsets.fillBoth let { gbc ->
                 add(JLabel("Tile ${value.tile.tileNumber}"), gbc)
             }
 
-            placeholderPanel(3)
+            emptyPanel(3)
 
-            gbc(4).smInsets.fillHorizontal.let { gbc ->
+            gbc(4).smInsets.fillHorizontal let { gbc ->
                 add(JLabel(healthStatus.toString().uppercase()).apply {
                     foreground = healthStatus.color()
                 }, gbc)
             }
 
-            placeholderPanel(5)
+            emptyPanel(5)
         }
     }
 }

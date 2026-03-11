@@ -1,0 +1,95 @@
+/*
+ * Copyright (c) 2026 Piotr Krzysztof Wyrwas [pg-ray]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+package org.piotrwyrw.pgray.ui.window.splash
+
+import org.piotrwyrw.pgray.render.contract.IOrchestrator
+import org.piotrwyrw.pgray.ui.component.CaptionedProgressBar
+import org.piotrwyrw.pgray.ui.dialog.DialogType
+import org.piotrwyrw.pgray.ui.dialog.MessageDialog
+import org.piotrwyrw.pgray.ui.dialog.option
+import org.piotrwyrw.pgray.ui.fillBoth
+import org.piotrwyrw.pgray.ui.fillHorizontal
+import org.piotrwyrw.pgray.ui.gbc
+import org.piotrwyrw.pgray.ui.theming.Theme
+import java.awt.Dimension
+import java.awt.GridBagLayout
+import java.util.concurrent.Executors
+import javax.swing.JFrame
+import javax.swing.JLabel
+import javax.swing.SwingUtilities
+
+class SplashWindow(
+    val orchestrator: IOrchestrator,
+    onComplete: (splash: SplashWindow) -> Unit
+) : JFrame("") {
+
+    companion object {
+        const val INITIAL_WIDTH = 800
+        const val INITIAL_HEIGHT = 400
+    }
+
+    private val title = JLabel("Swarm").apply {
+        horizontalAlignment = JLabel.CENTER
+        font = font.deriveFont(60f)
+    }
+
+    private val progressBar = CaptionedProgressBar(0f, "", { onComplete(this) }).apply {
+        background = Theme.accent.accent5
+        foreground = Theme.accent.accentColor
+    }
+
+    private val initExecutor = Executors.newSingleThreadExecutor()
+
+    fun create() {
+        layout = GridBagLayout()
+        size = Dimension(INITIAL_WIDTH, INITIAL_HEIGHT)
+
+        build()
+
+        setLocationRelativeTo(null)
+        isVisible = true
+
+        initExecutor.submit(::initialize)
+    }
+
+    private fun build() {
+        isUndecorated = true
+
+        gbc(0, 0).fillBoth.let { gbc ->
+            add(title, gbc)
+        }
+
+        gbc(0, 1).fillHorizontal.let { gbc ->
+            add(progressBar, gbc)
+        }
+    }
+
+    private fun setStatus(text: String, progress: Float) {
+        progressBar.update(text, progress)
+    }
+
+    private fun initialize() {
+        setStatus("Testing docker connectivity ...", 0f)
+        orchestrator.getDockerManager().pingDockerServer(ok = {
+            setStatus("Starting", 100f)
+        }, error = {
+            initExecutor.shutdownNow()
+            SwingUtilities.invokeLater {
+                MessageDialog.show(
+                    DialogType.ERROR,
+                    "Docker Unavailable",
+                    "Could not connect to the docker server. Please start it and try again.",
+                    this,
+                    option {
+                        label { "Close" }
+                        highlight { true }
+                        onClick { System.exit(0) }
+                    }
+                )
+            }
+        })
+    }
+}

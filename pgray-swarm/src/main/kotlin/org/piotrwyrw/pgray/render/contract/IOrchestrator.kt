@@ -5,10 +5,17 @@
 
 package org.piotrwyrw.pgray.render.contract
 
+import org.piotrwyrw.pgray.db.DatabaseManager
+import org.piotrwyrw.pgray.docker.DockerManager
 import org.piotrwyrw.pgray.render.Tile
 import org.piotrwyrw.pgray.render.Worker
 
 interface IOrchestrator {
+    fun getDockerManager(): DockerManager
+    fun getDatabaseManager(): DatabaseManager
+
+    fun startInspectionThread()
+
     fun subscribe(listener: IOrchestratorListener)
     fun getTiles(): List<Tile>
     fun createRenderingTiles(imageWidth: Int, imageHeight: Int, subdivisions: Int)
