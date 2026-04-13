@@ -14,7 +14,7 @@ enum class ContainerStatus {
     RUNNING;
 
     fun color(): Color {
-        val statusColors = Theme.containerStatus
+        val statusColors = Theme.ContainerStatus
         return when (this) {
             ABSENT -> statusColors.absent
             STOPPED -> statusColors.stopped

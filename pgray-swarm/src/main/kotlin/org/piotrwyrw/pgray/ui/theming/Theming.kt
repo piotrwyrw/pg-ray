@@ -8,6 +8,7 @@ package org.piotrwyrw.pgray.ui.theming
 import com.formdev.flatlaf.FlatLaf
 import com.formdev.flatlaf.FlatPropertiesLaf
 import com.formdev.flatlaf.util.SystemInfo
+import com.jthemedetecor.OsThemeDetector
 import org.piotrwyrw.pgray.brightness
 import org.piotrwyrw.pgray.invoke
 import java.awt.Color
@@ -45,7 +46,7 @@ class ThemedColor(light: () -> Color, dark: () -> Color) {
 }
 
 object Theme {
-    class Surface {
+    object Surface {
         val ground: Color
             get() = UIManager.getColor("Panel.background") ?: Color.WHITE
 
@@ -79,29 +80,27 @@ object Theme {
         val layer19 get() = ground.brightness(0.01)
     }
 
-    val surface = Surface()
-
-    class ContainerStatus {
-        val absent get() = surface.layer5
+    object ContainerStatus {
+        val absent by ThemedColor(light = { Surface.layer5 }, dark = { Surface.elevation3 })
         val stopped by ThemedColor(light = "#e69b93", dark = "#e74c3c")
-        val running by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
+        val running by ThemedColor(light = "#6cd067", dark = "#33a33f")
     }
 
-    class ContainerHealth {
-        val undefined by ThemedColor(light = surface.layer2, dark = surface.layer14)
+    object ContainerHealth {
+        val undefined by ThemedColor(light = { Surface.layer2 }, dark = { Surface.layer14 })
         val starting by ThemedColor(light = "#edd679", dark = "#f39c12")
-        val healthy by ThemedColor(light = "#81d6a5", dark = "#2ecc71")
+        val healthy by ThemedColor(light = "#6cd067", dark = "#33a33f")
         val unhealthy by ThemedColor(light = "#e69b93", dark = "#c0392b")
     }
 
-    class Icon {
+    object Icon {
         private val empty = ImageIcon(BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB))
         val error get() = UIManager.getIcon("OptionPane.errorIcon") ?: empty
         val info get() = UIManager.getIcon("OptionPane.informationIcon") ?: empty
         val warning get() = UIManager.getIcon("OptionPane.warningIcon") ?: empty
     }
 
-    class Text {
+    object Text {
         val foreground by ThemedColor(
             light = Color.black,
             dark = Color.white
@@ -111,7 +110,7 @@ object Theme {
         val textAreaFontSize = 14f
     }
 
-    class Accent {
+    object Accent {
         var accentColor: Color = Color.black // Fallback color. This will be changed on LAF init
 
         val accent1 get() = accentColor.brightness(0.9)
@@ -125,21 +124,22 @@ object Theme {
         val accent9 get() = accentColor.brightness(0.1)
     }
 
-    class TitleBar {
-        val titleBarColor get() = UIManager.getColor("TitleBar.background") ?: Color.black
+    object TitleBar {
+        val titleBarColor: Color get() = UIManager.getColor("TitleBar.background") ?: Color.black
     }
 
-    val containerStatus = ContainerStatus()
-    val containerHealth = ContainerHealth()
-    val icon = Icon()
-    val text = Text()
-    val accent = Accent()
-    val titleBar = TitleBar()
+    object StatusBar {
+        val statusBarColor by ThemedColor(light = { Surface.layer1 }, dark = { Surface.layer5 })
+    }
+
+    object List {
+        val selectedBackground: Color get() = UIManager.getColor("List.selectionBackground")
+    }
 }
 
 object ThemeLoader {
-    val DARK_THEME_PATH = "/themes/FlatSwarmDarkTheme.properties"
-    val LIGHT_THEME_PATH = "/themes/FlatSwarmLightTheme.properties"
+    const val DARK_THEME_PATH = "/themes/FlatSwarmDarkTheme.properties"
+    const val LIGHT_THEME_PATH = "/themes/FlatSwarmLightTheme.properties"
 
     private val darkThemeInputStream = javaClass.getResourceAsStream(DARK_THEME_PATH)
         ?: throw IllegalStateException("Could not load dark theme: ${DARK_THEME_PATH}")
@@ -149,6 +149,12 @@ object ThemeLoader {
 
     val darkTheme by lazy { FlatPropertiesLaf("FlatSwarmDarkTheme", darkThemeInputStream) }
     val lightTheme by lazy { FlatPropertiesLaf("FlatSwarmLightTheme", lightThemeInputStream) }
+}
+
+fun useSystemTheme(then: () -> Unit = {}) {
+    OsThemeDetector.getDetector().isDark.let { dark ->
+        useTheme(if (dark) ThemeMode.DARK else ThemeMode.LIGHT, then)
+    }
 }
 
 fun useTheme(mode: ThemeMode, then: () -> Unit = {}) {
@@ -166,7 +172,7 @@ fun useTheme(mode: ThemeMode, then: () -> Unit = {}) {
     }
 
     val accentColor = laf.defaults.getColor("Component.accentColor")
-    Theme.accent.accentColor = accentColor
+    Theme.Accent.accentColor = accentColor
 
     SwingUtilities.invokeLater {
         FlatLaf.setup(laf)

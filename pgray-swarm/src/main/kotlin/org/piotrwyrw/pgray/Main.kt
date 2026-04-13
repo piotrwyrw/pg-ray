@@ -7,13 +7,14 @@ package org.piotrwyrw.pgray
 
 import org.piotrwyrw.pgray.render.RenderingOrchestratorImpl
 import org.piotrwyrw.pgray.ui.theming.ThemeMode
+import org.piotrwyrw.pgray.ui.theming.useSystemTheme
 import org.piotrwyrw.pgray.ui.theming.useTheme
 import org.piotrwyrw.pgray.ui.window.splash.SplashWindow
 import org.piotrwyrw.pgray.ui.window.swarm.SwarmWindow
 
 fun main() {
     val orchestrator = RenderingOrchestratorImpl()
-    useTheme(ThemeMode.DARK) {
+    useSystemTheme {
         val frame = SwarmWindow(orchestrator)
         frame.create()
         SplashWindow(orchestrator) { splash ->

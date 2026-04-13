@@ -47,7 +47,7 @@ class CaptionedProgressBar(
         }
 
     private val captionLabel = JLabel(initialCaption).apply {
-        foreground = Theme.text.foreground
+        foreground = Theme.Text.foreground
     }
 
     init {

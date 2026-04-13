@@ -15,7 +15,7 @@ enum class ContainerHealthStatus {
     UNHEALTHY;
 
     fun color(): Color {
-        val healthColors = Theme.containerHealth
+        val healthColors = Theme.ContainerHealth
         return when (this) {
             UNDEFINED -> healthColors.undefined
             STARTING -> healthColors.starting

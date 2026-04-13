@@ -9,11 +9,14 @@ version = "1.0.0"
 
 repositories {
     mavenCentral()
+    maven("https://jitpack.io")
 }
 
 dependencies {
     implementation("com.formdev:flatlaf:3.7.1")
     implementation("com.formdev:flatlaf-intellij-themes:3.7.1")
+
+    implementation("com.github.Dansoftowner:jSystemThemeDetector:3.6")
 
     implementation("org.slf4j:slf4j-api:2.0.9")
     implementation("ch.qos.logback:logback-classic:1.4.11")

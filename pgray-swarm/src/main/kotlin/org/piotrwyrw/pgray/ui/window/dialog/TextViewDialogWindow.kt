@@ -5,15 +5,18 @@
 
 package org.piotrwyrw.pgray.ui.window.dialog
 
+import com.formdev.flatlaf.util.SystemInfo
 import org.piotrwyrw.pgray.apply
 import org.piotrwyrw.pgray.let
 import org.piotrwyrw.pgray.ui.*
 import org.piotrwyrw.pgray.ui.component.BlankCaret
 import org.piotrwyrw.pgray.ui.theming.Theme
+import org.piotrwyrw.pgray.ui.window.BaseWindow
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.GridBagLayout
 import javax.swing.*
+import kotlin.let
 
 class TextViewDialogWindow(
     parentFrame: JFrame? = null,
@@ -34,13 +37,13 @@ class TextViewDialogWindow(
     }
 
     private val titleLabel = JLabel(dialogTitle) apply {
-        font = font.deriveFont(Font.BOLD, Theme.text.titleLabelFontSize)
+        font = font.deriveFont(Font.BOLD, Theme.Text.titleLabelFontSize)
     }
 
     private val textArea = JTextArea(text) apply {
-        font = font.deriveFont(Theme.text.textAreaFontSize)
+        font = font.deriveFont(Theme.Text.textAreaFontSize)
         isEditable = false
-        background = Theme.surface.layer4
+        background = Theme.Surface.layer4
         caret = BlankCaret()
         caretPosition = 0
     }
@@ -48,7 +51,7 @@ class TextViewDialogWindow(
     private val textAreaScrollPane = JScrollPane(textArea)
 
     private val okButton = JButton("Ok") apply {
-        background = Theme.accent.accentColor
+        background = Theme.Accent.accentColor
         addActionListener { this@TextViewDialogWindow.dispose() }
     }
 
@@ -58,6 +61,8 @@ class TextViewDialogWindow(
         layout = GridBagLayout()
 
         build()
+
+        BaseWindow.applyMacOsFeatures(rootPane)
 
         setLocationRelativeTo(null)
         isVisible = true
@@ -84,6 +89,19 @@ class TextViewDialogWindow(
 
         gbc().fillBoth.lgInsets let { gbc ->
             add(wrapper, gbc)
+        }
+
+        gbc().fillBoth let { gbc ->
+            if (SystemInfo.isMacOS) {
+                add(JPanel().apply {
+                    layout = GridBagLayout()
+                    gbc { insets = Insets(40, 20, 20, 20) }.fillBoth let { gbc ->
+                        add(wrapper, gbc)
+                    }
+                }, gbc)
+            } else {
+                add(wrapper, gbc)
+            }
         }
     }
 

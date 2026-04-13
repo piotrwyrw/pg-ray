@@ -86,11 +86,11 @@ class Viewport(val orchestrator: IOrchestrator) : JPanel() {
             g.color = healthColor
             g.fillRect(ax, ay, w, h)
 
-            g.color = Theme.accent.accent2
+            g.color = Theme.Accent.accent2
             g.drawRect(ax - 1, ay - 1, w + 1, h + 1)
 
             // Tile number indicator
-            g.color = Theme.text.foreground
+            g.color = Theme.Text.foreground
             g.drawCenteredString(
                 tile.tileNumber.toString(),
                 fromX.toInt(),
@@ -101,7 +101,7 @@ class Viewport(val orchestrator: IOrchestrator) : JPanel() {
         }
 
         if (tileCount > 0) {
-            g.color = Theme.surface.layer9
+            g.color = Theme.Surface.layer9
             g.drawLine(0, 0, width, 0)
         }
 

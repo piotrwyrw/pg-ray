@@ -8,17 +8,22 @@ package org.piotrwyrw.pgray.ui.window.swarm
 import com.formdev.flatlaf.util.SystemInfo
 import org.piotrwyrw.pgray.apply
 import org.piotrwyrw.pgray.docker.status.ContainerStatus
+import org.piotrwyrw.pgray.docker.status.WorkerStatus
 import org.piotrwyrw.pgray.render.Worker
 import org.piotrwyrw.pgray.render.contract.IOrchestrator
 import org.piotrwyrw.pgray.render.contract.IOrchestratorListener
 import org.piotrwyrw.pgray.ui.*
+import org.piotrwyrw.pgray.ui.component.GradientPanel
 import org.piotrwyrw.pgray.ui.component.Viewport
 import org.piotrwyrw.pgray.ui.theming.PropertyBinder.bind
 import org.piotrwyrw.pgray.ui.theming.Theme
 import org.piotrwyrw.pgray.ui.theming.ThemeMode
+import org.piotrwyrw.pgray.ui.theming.useSystemTheme
 import org.piotrwyrw.pgray.ui.theming.useTheme
+import org.piotrwyrw.pgray.ui.window.BaseWindow
 import org.piotrwyrw.pgray.ui.window.dialog.TextViewDialogWindow
 import java.awt.Dimension
+import java.awt.GraphicsEnvironment
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.event.WindowAdapter
@@ -26,15 +31,11 @@ import java.awt.event.WindowEvent
 import java.util.concurrent.Executors
 import javax.swing.*
 import javax.swing.event.ChangeEvent
+import javax.swing.table.DefaultTableCellRenderer
 
 class SwarmWindow(
     val orchestrator: IOrchestrator
-) : JFrame("PGRay Swarm") {
-
-    companion object {
-        const val INITIAL_WIDTH = 1500
-        const val INITIAL_HEIGHT = 900
-    }
+) : BaseWindow("PGRay Swarm") {
 
     private val licenseText by lazy {
         val stream = javaClass.getResourceAsStream("/license.txt") ?: return@lazy "Could not load license"
@@ -61,10 +62,15 @@ class SwarmWindow(
                     useTheme(ThemeMode.LIGHT)
                 }
             })
+            add(JMenuItem("Use System Theme") apply {
+                addActionListener {
+                    useSystemTheme()
+                }
+            })
         })
     }
 
-    private val titleBarColor = Theme.titleBar.titleBarColor
+    private val titleBarColor = Theme.TitleBar.titleBarColor
 
     private val gui = object {
         val leftPanel = JPanel().apply {
@@ -74,13 +80,12 @@ class SwarmWindow(
 
         val rightPanel = JPanel().apply {
             layout = GridBagLayout()
-            bind({ background = it }) { Theme.surface.layer1 }
         }
 
         val horizontalSplit = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel)
 
         val viewport = Viewport(orchestrator).apply {
-            border = BorderFactory.createLineBorder(Theme.accent.accentColor, 2, true)
+            border = BorderFactory.createLineBorder(Theme.Accent.accentColor, 2, true)
         }
 
         val widthSpinner = JSpinner(SpinnerNumberModel(300, 1, Integer.MAX_VALUE, 1))
@@ -93,9 +98,19 @@ class SwarmWindow(
         val renderButton = JButton("Render")
         val abortButton = JButton("Abort").apply { isEnabled = false }
 
-        val statusBar = JPanel().apply {
+        val statusBar = GradientPanel(
+            GradientPanel.GradientDirection.TOP_DONW,
+            Theme.StatusBar.statusBarColor,
+            Theme.Surface.ground
+        ).apply {
             layout = GridBagLayout()
-            bind({ background = it }) { Theme.surface.layer2 }
+
+            bind({ from = it }) { Theme.StatusBar.statusBarColor }
+            bind({ to = it }) { Theme.Surface.ground }
+
+            computedOffset { panel ->
+                panel.height.toFloat() - panel.height / 6f
+            }
         }
         val statusLabel = JLabel()
         val statusBarProgressBar = JProgressBar(JProgressBar.HORIZONTAL).apply {
@@ -103,43 +118,45 @@ class SwarmWindow(
             preferredSize = Dimension(0, 4)
         }
 
-        val workerListModel = DefaultListModel<Worker>()
-        val workerList = JList(workerListModel).apply {
-            cellRenderer = WorkerCellRenderer()
+        val defaultRenderer = DefaultTableCellRenderer().apply {
+            horizontalAlignment = DefaultTableCellRenderer.CENTER
         }
 
-        val workersScrollPane = JScrollPane(workerList)
+        val workerTableModel = TypedTableModel().apply {
+            addTypedColumn(WorkerStatus::class.java, "Status")
+            addTypedColumn(String::class.java, "Tile")
+            addTypedColumn(String::class.java, "Status Description")
+        }
+
+        val workerTable = JTable(workerTableModel).apply {
+            setDefaultRenderer(String::class.java, defaultRenderer)
+            setDefaultRenderer(WorkerStatus::class.java, WorkerStatusTableCellRenderer())
+        }
+
+        val workersScrollPane = JScrollPane(workerTable)
     }
 
     private val cachedWorkers = mutableMapOf<String, Worker>()
 
     fun create() {
+        val bounds = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+
         layout = GridBagLayout()
-        size = Dimension(INITIAL_WIDTH, INITIAL_HEIGHT)
+        size = bounds.size
+        location = bounds.location
 
         buildUI()
 
-        addWindowListener(object : WindowAdapter() {
-            override fun windowClosing(e: WindowEvent?) {
-                onWindowClosing()
-            }
-        })
+        configureListeners()
 
-        if (SystemInfo.isMacFullWindowContentSupported) {
-            rootPane.putClientProperty("apple.awt.fullWindowContent", true);
-            rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
-        }
-
-        setLocationRelativeTo(null)
+        applyMacOsFeatures(rootPane)
     }
 
     private fun buildUI() {
         jMenuBar = menuBar
         buildGui()
         updateUI()
-        configureListeners()
         setStatus()
-        orchestrator.startInspectionThread()
     }
 
     private fun onWindowClosing() {
@@ -192,20 +209,31 @@ class SwarmWindow(
             gui.subdivisionSpinner.addChangeListener(this@apply)
         }
 
+        addWindowListener(object : WindowAdapter() {
+            override fun windowClosing(e: WindowEvent?) {
+                onWindowClosing()
+            }
+        })
+
         orchestrator.subscribe(object : IOrchestratorListener {
             override fun onWorkerCreated(worker: Worker) = orchestrator.startWorker(worker)
 
-            private fun updateWorkerListModel() {
-                val selectedIndex = gui.workerList.selectedIndex
-                gui.workerListModel.clear()
-                gui.workerListModel.addAll(cachedWorkers.values.sortedBy { it.tile.tileNumber })
-                if (selectedIndex < gui.workerListModel.size)
-                    gui.workerList.selectedIndex = selectedIndex
+            private fun updateWorkerTableModel() {
+                gui.workerTableModel.rowCount = 0
+                cachedWorkers.values.sortedBy { it.tile.tileNumber }.forEach { worker ->
+                    gui.workerTableModel.addRow(
+                        arrayOf(
+                            worker.status,
+                            "Tile ${worker.tile.tileNumber}",
+                            worker.status.healthStatus.toString()
+                        )
+                    )
+                }
             }
 
             override fun onWorkerRemoved(worker: Worker) {
                 cachedWorkers.remove(worker.container.containerId)
-                updateWorkerListModel()
+                updateWorkerTableModel()
                 gui.viewport.repaint()
             }
 
@@ -217,7 +245,7 @@ class SwarmWindow(
                 }
 
                 cachedWorkers[id] = worker
-                updateWorkerListModel()
+                updateWorkerTableModel()
                 gui.viewport.repaint()
             }
         })
@@ -394,7 +422,6 @@ class SwarmWindow(
 
         gbc(0, 1).xlInsets.fillBoth.let { gbc ->
             gui.rightPanel.add(JPanel().apply {
-                bind({ background = it }) { Theme.surface.layer1 }
                 add(gui.viewport)
             }, gbc)
         }

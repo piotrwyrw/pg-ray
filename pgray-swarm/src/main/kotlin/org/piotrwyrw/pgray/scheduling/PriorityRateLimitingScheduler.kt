@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * A scheduler implementation that limits the number of simultaneous tasks
@@ -27,11 +28,14 @@ class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private val taskCounter = AtomicInteger(0)
     private var _taskExecutor: ThreadPoolExecutor? = null
     private val taskExecutor: ThreadPoolExecutor
         get() {
             return _taskExecutor ?: run {
-                _taskExecutor = Executors.newCachedThreadPool() as ThreadPoolExecutor
+                _taskExecutor = Executors.newCachedThreadPool {
+                    Thread(it, "prl-task-${taskCounter.getAndIncrement()}")
+                } as ThreadPoolExecutor
                 _taskExecutor!!
             }
         }
@@ -40,7 +44,9 @@ class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_
     private val schedulingExecutor: ScheduledExecutorService
         get() {
             return _schedulingExecutor ?: run {
-                _schedulingExecutor = Executors.newSingleThreadScheduledExecutor()
+                _schedulingExecutor = Executors.newSingleThreadScheduledExecutor {
+                    Thread(it, "prl-scheduler")
+                }
                 _schedulingExecutor!!
             }
         }
@@ -53,6 +59,8 @@ class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_
     )
 
     private val taskSemaphore = Semaphore(maxSimultaneousTaskCount)
+
+    private val retryDelay = 100L
 
     private fun startScheduler() {
         if (schedulerRunning.get())
@@ -82,6 +90,7 @@ class PriorityRateLimitingScheduler(maxSimultaneousTaskCount: Int = DEFAULT_MAX_
             taskExecutor.submit {
                 try {
                     task.invokeOnSuccess(task.invokeTask()) {
+                        Thread.sleep(retryDelay)
                         submit(task)
                     }
                 } catch (e: Throwable) {

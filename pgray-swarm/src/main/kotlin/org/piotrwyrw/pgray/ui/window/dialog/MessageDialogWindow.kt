@@ -5,13 +5,14 @@
 
 package org.piotrwyrw.pgray.ui.window.dialog
 
+import com.formdev.flatlaf.util.SystemInfo
 import org.piotrwyrw.pgray.apply
 import org.piotrwyrw.pgray.let
 import org.piotrwyrw.pgray.ui.*
 import org.piotrwyrw.pgray.ui.dialog.DialogOption
 import org.piotrwyrw.pgray.ui.dialog.DialogType
 import org.piotrwyrw.pgray.ui.theming.Theme
-import java.awt.Dimension
+import org.piotrwyrw.pgray.ui.window.BaseWindow
 import java.awt.Font
 import java.awt.GridBagLayout
 import javax.swing.*
@@ -29,12 +30,12 @@ class MessageDialogWindow(
         const val TEXT_WIDTH = 400
     }
 
-    private val backgroundColor = Theme.surface.layer4
+    private val backgroundColor = Theme.Surface.layer4
 
     private val icon = when (dialogType) {
-        DialogType.INFO -> Theme.icon.info
-        DialogType.WARNING -> Theme.icon.warning
-        DialogType.ERROR -> Theme.icon.error
+        DialogType.INFO -> Theme.Icon.info
+        DialogType.WARNING -> Theme.Icon.warning
+        DialogType.ERROR -> Theme.Icon.error
     }
 
     private val iconLabel = JLabel() apply {
@@ -43,7 +44,7 @@ class MessageDialogWindow(
     }
 
     private val titleLabel =
-        JLabel(dialogTitle) apply { font = font.deriveFont(Font.BOLD, Theme.text.titleLabelFontSize) }
+        JLabel(dialogTitle) apply { font = font.deriveFont(Font.BOLD, Theme.Text.titleLabelFontSize) }
 
     private val messageLabel = JLabel("<html><div style=\"width: ${TEXT_WIDTH}px\">$message</div></html>")
 
@@ -75,6 +76,8 @@ class MessageDialogWindow(
         val size = this.size
         minimumSize = size
         maximumSize = size
+
+        BaseWindow.applyMacOsFeatures(rootPane)
 
         setLocationRelativeTo(null)
         isVisible = true
@@ -108,16 +111,8 @@ class MessageDialogWindow(
             wrapper.add(messageLabel, gbc)
         }
 
-        // Spacer between the dialog message and the button wrapper
-        gbc(0, 2) { gridwidth = 2 }.fillBoth let { gbc ->
-            wrapper.add(JPanel() apply { isOpaque = false }, gbc)
-        }
-
         // Button Wrapper
-        gbc(0, 3) {
-            insets = Insets(10, 0, 0, 0)
-            gridwidth = 2
-        }.fillHorizontal let { gbc ->
+        gbc(0, 2) { gridwidth = 2; }.mdInsets.topInsets.fillHorizontal let { gbc ->
             wrapper.add(buttonWrapper, gbc)
         }
 
@@ -136,7 +131,7 @@ class MessageDialogWindow(
                     throw IllegalStateException("Only one button can be marked as highlighted. Failed on \"${option.label}\", previously highlighted \"${highlightedButton!!.text}\"")
                 }
 
-                btn.background = Theme.accent.accentColor
+                btn.background = Theme.Accent.accentColor
                 btn.font = btn.font.deriveFont(Font.BOLD)
                 this.highlightedButton = btn
             }
@@ -153,11 +148,16 @@ class MessageDialogWindow(
             }
         }
 
-        // The wrapper itself
         contentPane = JPanel().apply {
             layout = GridBagLayout()
-            gbc().fillBoth.lgInsets.let { gbc ->
-                this.add(wrapper, gbc)
+            if (SystemInfo.isMacOS) {
+                gbc { insets = Insets(40, 20, 20, 20) }.fillBoth.let { gbc ->
+                    this.add(wrapper, gbc)
+                }
+            } else {
+                gbc().fillBoth.lgInsets.let { gbc ->
+                    this.add(wrapper, gbc)
+                }
             }
         }
     }

@@ -106,7 +106,7 @@ class RenderingOrchestratorImpl : IOrchestrator {
     }
 
     override fun inspectAllWorkers() {
-        workers.forEach { _, worker ->
+        workers.forEach { (_, worker) ->
             inspectWorker(worker)
         }
     }
@@ -118,19 +118,19 @@ class RenderingOrchestratorImpl : IOrchestrator {
     }
 
     override fun removeAllWorkers() {
-        workers.forEach { _, worker ->
+        workers.forEach { (_, worker) ->
             removeWorker(worker)
         }
     }
 
     override fun startAllWorkers() {
-        workers.forEach { _, worker ->
+        workers.forEach { (_, worker) ->
             startWorker(worker)
         }
     }
 
     override fun stopAllWorkers() {
-        workers.forEach { _, worker ->
+        workers.forEach { (_, worker) ->
             stopWorker(worker)
         }
     }
@@ -151,7 +151,11 @@ class RenderingOrchestratorImpl : IOrchestrator {
 
             notify { onWorkerCreated(worker) }
         }, { t, retry ->
-            logger.warn("Failed to create worker for tile ${tile.tileNumber}. Trying again. Failure cause: ${t.javaClass.simpleName}: ${t.message}")
+            logger.warn(
+                "Failed to create worker for tile ${tile.tileNumber}. Trying again. Failure cause: ${
+                    t.javaClass.simpleName
+                }: ${t.message}"
+            )
             retry()
         }, Priority.WORKER_CREATE)
     }
@@ -166,12 +170,20 @@ class RenderingOrchestratorImpl : IOrchestrator {
                     ?.contains("port\\s+is\\s+already\\s+allocated".toRegex()) ?: false
             ) {
                 val newPort = dockerManager.allocNextAvailablePort()
-                logger.warn("Failed to start worker ${worker.container.containerId}: Port (${worker.container.port}) is already allocated. Trying again with port ($newPort)")
+                logger.warn(
+                    "Failed to start worker ${worker.container.containerId}: Port (${
+                        worker.container.port
+                    }) is already allocated. Trying again with port ($newPort)"
+                )
                 retry()
                 return@submit
             }
 
-            logger.warn("Failed to start worker ${worker.container.containerId}. Trying again. Failure cause: ${t.javaClass.simpleName}: ${t.message}")
+            logger.warn(
+                "Failed to start worker ${worker.container.containerId}. Trying again. Failure cause: ${
+                    t.javaClass.simpleName
+                }: ${t.message}"
+            )
             retry()
         }, Priority.WORKER_START)
     }
@@ -188,7 +200,11 @@ class RenderingOrchestratorImpl : IOrchestrator {
                 notify { onWorkerRemoved(worker.copy()) }
                 return@submit
             }
-            logger.warn("Failed to stop worker ${worker.container.containerId}. Trying again. Failure cause: ${t.javaClass.simpleName}: ${t.message}")
+            logger.warn(
+                "Failed to stop worker ${worker.container.containerId}. Trying again. Failure cause: ${
+                    t.javaClass.simpleName
+                }: ${t.message}"
+            )
             retry()
         }, Priority.WORKER_STOP)
     }
@@ -202,7 +218,11 @@ class RenderingOrchestratorImpl : IOrchestrator {
         }, { _, _ ->
             notify { onWorkerRemoved(worker) }
         }, { t, retry ->
-            logger.warn("Could not remove container ${worker.container.containerId}. Trying again. Failure cause:: ${t.javaClass.simpleName}: ${t.message?.trim()} ")
+            logger.warn(
+                "Could not remove container ${worker.container.containerId}. Trying again. Failure cause:: ${
+                    t.javaClass.simpleName
+                }: ${t.message?.trim()} "
+            )
             retry()
         }, Priority.WORKER_REMOVE)
     }
@@ -212,7 +232,7 @@ class RenderingOrchestratorImpl : IOrchestrator {
 
         scheduler.submit({
             dockerManager.inspectContainer(containerId)
-        }, { status, scheduleAgain ->
+        }, { status, _ ->
 
             logger.debug(
                 "Inspecting worker for tile ${worker.tile.tileNumber}: ${
@@ -249,8 +269,11 @@ class RenderingOrchestratorImpl : IOrchestrator {
             }
 
             logger.warn(
-                "Could not inspect container $containerId. Trying again. Failure cause: ${error.javaClass.simpleName}: ${error.message}"
+                "Could not inspect container $containerId. Trying again. Failure cause: ${
+                    error.javaClass.simpleName
+                }: ${error.message}"
             )
+
             retry()
         }, Priority.WORKER_INSPECT)
     }
@@ -259,6 +282,7 @@ class RenderingOrchestratorImpl : IOrchestrator {
         scheduler.shutdown()
     }
 
-    override fun getWorkerOfTile(tile: Tile): Worker? =
-        synchronized(workers) { workers.values.find { it.tile == tile } }
+    override fun getWorkerOfTile(tile: Tile): Worker? = synchronized(workers) {
+        workers.values.find { it.tile == tile }
+    }
 }

@@ -55,6 +55,26 @@ fun GridBagConstraints.insets(inset: Int) = apply {
     this.insets = Insets(inset)
 }
 
+val GridBagConstraints.topInsets: GridBagConstraints
+    get() = apply {
+        insets = Insets(insets.top, 0, 0, 0)
+    }
+
+val GridBagConstraints.leftInsets: GridBagConstraints
+    get() = apply {
+        insets = Insets(0, insets.left, 0, 0)
+    }
+
+val GridBagConstraints.bottomInsets: GridBagConstraints
+    get() = apply {
+        insets = Insets(0, 0, insets.bottom, 0)
+    }
+
+val GridBagConstraints.rightInsets: GridBagConstraints
+    get() = apply {
+        insets = Insets(0, 0, 0, insets.right)
+    }
+
 val GridBagConstraints.fillHorizontal: GridBagConstraints
     get() = apply {
         weightx = 1.0

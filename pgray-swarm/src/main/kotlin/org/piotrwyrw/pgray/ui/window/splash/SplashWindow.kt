@@ -7,6 +7,7 @@ package org.piotrwyrw.pgray.ui.window.splash
 
 import org.piotrwyrw.pgray.render.contract.IOrchestrator
 import org.piotrwyrw.pgray.ui.component.CaptionedProgressBar
+import org.piotrwyrw.pgray.ui.component.ParticleSystemPanel
 import org.piotrwyrw.pgray.ui.dialog.DialogType
 import org.piotrwyrw.pgray.ui.dialog.MessageDialog
 import org.piotrwyrw.pgray.ui.dialog.option
@@ -20,6 +21,7 @@ import java.util.concurrent.Executors
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 
 class SplashWindow(
     val orchestrator: IOrchestrator,
@@ -37,9 +39,11 @@ class SplashWindow(
     }
 
     private val progressBar = CaptionedProgressBar(0f, "", { onComplete(this) }).apply {
-        background = Theme.accent.accent5
-        foreground = Theme.accent.accentColor
+        background = Theme.Accent.accent5
+        foreground = Theme.Accent.accentColor
     }
+
+    private val particleSystem = ParticleSystemPanel()
 
     private val initExecutor = Executors.newSingleThreadExecutor()
 
@@ -52,6 +56,11 @@ class SplashWindow(
         setLocationRelativeTo(null)
         isVisible = true
 
+        Timer(10) {
+            particleSystem.update()
+            particleSystem.repaint()
+        }.start()
+
         initExecutor.submit(::initialize)
     }
 
@@ -59,7 +68,10 @@ class SplashWindow(
         isUndecorated = true
 
         gbc(0, 0).fillBoth.let { gbc ->
-            add(title, gbc)
+            add(particleSystem.apply {
+                layout = GridBagLayout()
+                add(title, gbc())
+            }, gbc)
         }
 
         gbc(0, 1).fillHorizontal.let { gbc ->
@@ -72,9 +84,17 @@ class SplashWindow(
     }
 
     private fun initialize() {
-        setStatus("Testing docker connectivity ...", 0f)
+        setStatus("Starting", 0f)
+        Thread.sleep(500)
+        setStatus("Testing docker connectivity", 10f)
+        Thread.sleep(1000)
         orchestrator.getDockerManager().pingDockerServer(ok = {
-            setStatus("Starting", 100f)
+            setStatus("Starting worker inspection thread", 50f)
+            orchestrator.startInspectionThread()
+            Thread.sleep(500)
+            setStatus("Done.", 99.9f)
+            Thread.sleep(1000)
+            setStatus(progressBar.caption, 100f)
         }, error = {
             initExecutor.shutdownNow()
             SwingUtilities.invokeLater {

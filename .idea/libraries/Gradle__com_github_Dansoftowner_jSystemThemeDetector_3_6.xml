@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.Dansoftowner:jSystemThemeDetector:3.6" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.Dansoftowner" artifactId="jSystemThemeDetector" version="3.6" baseVersion="3.6" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.Dansoftowner/jSystemThemeDetector/3.6/19993ae711a32f9eabc4d29e643f3e20e0113147/jSystemThemeDetector-3.6.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -6,10 +6,11 @@
 package org.piotrwyrw.pgray.ui
 
 import org.piotrwyrw.pgray.apply
-import org.piotrwyrw.pgray.let
-import org.piotrwyrw.pgray.render.Worker
 import org.piotrwyrw.pgray.docker.status.ContainerHealthStatus
 import org.piotrwyrw.pgray.docker.status.ContainerStatus
+import org.piotrwyrw.pgray.let
+import org.piotrwyrw.pgray.render.Worker
+import org.piotrwyrw.pgray.ui.theming.Theme
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.Graphics
@@ -28,7 +29,16 @@ class WorkerCellRenderer() : ListCellRenderer<Worker> {
         isSelected: Boolean,
         cellHasFocus: Boolean
     ): Component {
-        return JPanel() apply {
+        return object : JPanel() {
+            override fun paintComponent(g: Graphics) {
+                super.paintComponent(g)
+
+                if (!isSelected) return
+
+                g.color = Theme.List.selectedBackground
+                g.fillRect(0, 0, width, height)
+            }
+        } apply {
             layout = GridBagLayout()
 
             gbc {
@@ -92,9 +102,7 @@ class WorkerCellRenderer() : ListCellRenderer<Worker> {
             emptyPanel(3)
 
             gbc(4).smInsets.fillHorizontal let { gbc ->
-                add(JLabel(healthStatus.toString().uppercase()).apply {
-                    foreground = healthStatus.color()
-                }, gbc)
+                add(JLabel(healthStatus.toString().uppercase()), gbc)
             }
 
             emptyPanel(5)
